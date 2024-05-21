@@ -8,30 +8,27 @@ import org.jglrxavpok.jlsl.glsl.Vec2;
 import org.jglrxavpok.jlsl.glsl.Vec4;
 import org.jglrxavpok.jlsl.glsl.VertexShader;
 
-public class StarRegionVertexShader extends VertexShader {
-    // Input attributes
+public class StarRegionBlitVertexShader extends VertexShader {
+    @In
+    Vec4 a_position;
     @In
     Vec4 a_color;
     @In
-    Vec2 a_position;
-    @In
-    int a_owner;
+    Vec2 a_texCoord0;
 
-    // Uniforms
     @Uniform
     Mat4 u_projTrans;
-    @Uniform
-    Vec2 u_ccoords;
 
     @Out
     Vec4 v_color;
     @Out
-    Vec2 v_origincoords;
+    Vec2 v_texCoords;
 
     @Override
     public void main() {
-        this.v_color = this.a_color/*.mul(new Vec4(1, 1, 1, 0.35))*/;
-        this.v_origincoords = this.a_position;
-        this.gl_Position =  this.u_projTrans.mul(new Vec4(this.a_position, 0, 1));
+        this.v_color = this.a_color;
+        this.v_color.w = this.v_color.w * (255.0/254.0);
+        this.v_texCoords = this.a_texCoord0;
+        super.gl_Position = this.u_projTrans.mul(this.a_position);
     }
 }

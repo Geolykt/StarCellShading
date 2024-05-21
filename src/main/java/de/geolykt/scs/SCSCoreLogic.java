@@ -7,7 +7,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
@@ -16,8 +16,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jglrxavpok.jlsl.BytecodeDecoder;
 import org.jglrxavpok.jlsl.JLSLContext;
 import org.jglrxavpok.jlsl.glsl.GLSLEncoder;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.tree.ClassNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,15 +23,22 @@ import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Mesh;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.VertexAttribute;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.IntMap;
 
 import de.geolykt.scs.rendercache.DeferredGlobalRenderObject;
-import de.geolykt.scs.shaders.StarRegionFragmentShader;
-import de.geolykt.scs.shaders.StarRegionVertexShader;
+import de.geolykt.scs.shaders.StarRegionBlitFragmentShader;
+import de.geolykt.scs.shaders.StarRegionBlitVertexShader;
+import de.geolykt.scs.shaders.StarRegionExplodeFragmentShader;
+import de.geolykt.scs.shaders.StarRegionExplodeVertexShader;
 import de.geolykt.starloader.api.CoordinateGrid;
 import de.geolykt.starloader.api.Galimulator;
 import de.geolykt.starloader.api.empire.Star;
@@ -43,23 +48,33 @@ import de.geolykt.starloader.api.registry.RegistryKeys;
 import de.geolykt.starloader.impl.registry.SLMapMode;
 
 public class SCSCoreLogic {
-    private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
-    private static ShaderProgram program;
+    private static final VertexAttribute ATTRIBUTE_CENTER_POSITION = new VertexAttribute(Usage.Generic, 2, GL20.GL_FLOAT, false, "a_centerpos");
+    private static final VertexAttribute ATTRIBUTE_VERTEX_POSITION = new VertexAttribute(Usage.Position, 2, GL20.GL_FLOAT, false, ShaderProgram.POSITION_ATTRIBUTE);
+    private static ShaderProgram blitShader;
 
+    private static ShaderProgram explodeShader;
     private static final float GRANULARITY_FACTOR = 0.035F;
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
     private static final float REGION_SIZE = GRANULARITY_FACTOR * 16;
 
-    private static final VertexAttribute ATTRIBUTE_VERTEX_POSITION = new VertexAttribute(Usage.Position, 2, GL20.GL_FLOAT, false, ShaderProgram.POSITION_ATTRIBUTE);
-    private static final VertexAttribute ATTRIBUTE_VERTEX_COLOR = VertexAttribute.ColorPacked();
-    private static final VertexAttribute ATTRIBUTE_VERTEX_OWNER = new VertexAttribute(Usage.Generic, 1, GL20.GL_INT, false, "a_owner");
-
-    public static void disposeShader() {
-        ShaderProgram shader = SCSCoreLogic.program;
+    public static void disposeBlitShader() {
+        ShaderProgram shader = SCSCoreLogic.blitShader;
         if (shader == null) {
-            SCSCoreLogic.LOGGER.warn("Shader not yet initialized, yet it should be disposed.");
+            SCSCoreLogic.LOGGER.warn("Blit shader not yet initialized, yet it should be disposed.");
             return;
         }
-        SCSCoreLogic.program = null;
+        SCSCoreLogic.blitShader = null;
+        shader.dispose();
+    }
+
+    public static void disposeExplodeShader() {
+        ShaderProgram shader = SCSCoreLogic.explodeShader;
+        if (shader == null) {
+            SCSCoreLogic.LOGGER.warn("Explode shader not yet initialized, yet it should be disposed.");
+            return;
+        }
+        SCSCoreLogic.explodeShader = null;
         shader.dispose();
     }
 
@@ -77,10 +92,16 @@ public class SCSCoreLogic {
     public static void drawRegionsDirect(FlexibleQuadTree<Star> quadTree) {
         SpriteBatch batch = Drawing.getDrawingBatch();
 
-        ShaderProgram newShader = SCSCoreLogic.program;
-        if (newShader == null) {
-            SCSCoreLogic.LOGGER.warn("Shader program wasn't yet initialized. Doing it now");
-            newShader = SCSCoreLogic.initializeShader();
+        ShaderProgram explodeShader = SCSCoreLogic.explodeShader;
+        if (explodeShader == null) {
+            SCSCoreLogic.LOGGER.warn("Explode shader program wasn't yet initialized. Doing it now");
+            explodeShader = SCSCoreLogic.initializeExplodeShader();
+        }
+
+        ShaderProgram blitShader = SCSCoreLogic.blitShader;
+        if (blitShader == null) {
+            SCSCoreLogic.LOGGER.warn("Blit shader program wasn't yet initialized. Doing it now");
+            blitShader = SCSCoreLogic.initializeBlitShader();
         }
 
         float screenW = Gdx.graphics.getWidth();
@@ -99,65 +120,118 @@ public class SCSCoreLogic {
             batch.flush();
         }
 
-        Mesh mesh = new Mesh(false, 32, 0, ATTRIBUTE_VERTEX_POSITION, ATTRIBUTE_VERTEX_COLOR);
-        float[] vertArray = new float[32 * 3];
-        newShader.bind();
-        newShader.setUniformMatrix("u_projTrans", batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix()));
-
+        IntMap<List<Star>> empires = new IntMap<>();
+        int maxlen = 0;
         for (Star star : stars) {
-            float x = star.getX();
-            float y = star.getY();
-            vertArray[0] = x;
-            vertArray[1] = y;
-
-            float starColorOpaque = getStarColorFloat(star);
-//            int starColorOpaqueBits = Float.floatToRawIntBits(starColorOpaque);
-//            int starColorTranslucentBits = (starColorOpaqueBits & 0xFF000000) / 16 | (starColorOpaqueBits & 0xFFFFFF);
-//            float starColorTranslucent = Float.intBitsToFloat(starColorTranslucentBits);
-//            float starColorTranslucent = Color.CLEAR.toFloatBits();
-            float starColorTranslucent = starColorOpaque;
-
-            vertArray[2] = starColorOpaque;
-
-            float[] vertexPositionData;
-            try {
-                vertexPositionData = ((StarAccess) star).starCellShading$getStarRegionVertices();
-            } catch (NullPointerException npe) {
-                continue;
+            int empireUID = star.getAssignedEmpireUID();
+            List<Star> empire = empires.get(empireUID);
+            if (empire == null) {
+                empire = new ArrayList<>();
+                empires.put(empireUID, empire);
             }
-
-            int outerVertices = vertexPositionData.length / 2;
-            int allVertices = outerVertices + 2;
-            for (int i = 0; i < outerVertices; i++) {
-                vertArray[(i + 1) * 3 + 0] = vertexPositionData[i * 2];
-                vertArray[(i + 1) * 3 + 1] = vertexPositionData[i * 2 + 1];
-                vertArray[(i + 1) * 3 + 2] = starColorTranslucent;
-            }
-
-            vertArray[outerVertices * 3 + 3] = vertexPositionData[0];
-            vertArray[outerVertices * 3 + 4] = vertexPositionData[1];
-            vertArray[outerVertices * 3 + 5] = starColorTranslucent;
-
-            mesh.setVertices(vertArray, 0, allVertices * 3);
-            newShader.setUniform2fv("u_ccoords", vertArray, 0, 2);
-            mesh.render(newShader, GL20.GL_TRIANGLE_FAN, 0, allVertices, true);
-            Arrays.fill(vertArray, 0F);
+            empire.add(star);
+            maxlen = Math.max(maxlen, empire.size());
         }
 
-        if (!newShader.getLog().isEmpty()) {
-            LOGGER.info("Shader logs (pre dispose):");
-            for (String ln : newShader.getLog().split("\n")) {
-                LOGGER.info(ln);
-            }
+        float[] vertices = new float[maxlen * 16];
+        Mesh mesh = new Mesh(false, maxlen * 4, maxlen * 5, ATTRIBUTE_VERTEX_POSITION, ATTRIBUTE_CENTER_POSITION);
+
+        short[] indices = new short[maxlen * 5];
+        // 0, 1, 2, 3, <RESET>, 4, 5, 6, 7, <RESET>, 8, 9, [...]
+        for (int i = maxlen; i-- != 0;) {
+            int baseAddrW = i * 5;
+            int baseAddrR = i * 4;
+            indices[baseAddrW] = (short) (baseAddrR);
+            indices[baseAddrW + 1] = (short) (baseAddrR + 1);
+            indices[baseAddrW + 2] = (short) (baseAddrR + 2);
+            indices[baseAddrW + 3] = (short) (baseAddrR + 3);
+            indices[baseAddrW + 4] = (short) (0xFFFF);
         }
+        mesh.setIndices(indices);
 
-        mesh.dispose();
+        org.lwjgl.opengl.GL31.glPrimitiveRestartIndex(0xFFFF);
+        Gdx.gl20.glEnable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
 
-        if (!newShader.getLog().isEmpty()) {
-            LOGGER.info("Shader logs (post dispose):");
-            for (String ln : newShader.getLog().split("\n")) {
-                LOGGER.info(ln);
+        FrameBuffer secondaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
+        FrameBuffer tertiaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
+        SpriteBatch blitBatch = new SpriteBatch(1, blitShader);
+        blitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
+        blitBatch.enableBlending();
+
+        try {
+            for (List<Star> empire : empires.values()) {
+                int i;
+                int empireSize = i = empire.size();
+                while (i-- != 0) {
+
+                    Star s = empire.get(i);
+                    int baseAddress = i * 16;
+                    float x = s.getX();
+                    float y = s.getY();
+
+                    vertices[baseAddress] = x - 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 1] = y - 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 2] = x;
+                    vertices[baseAddress + 3] = y;
+
+                    vertices[baseAddress + 4] = x + 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 5] = y - 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 6] = x;
+                    vertices[baseAddress + 7] = y;
+
+                    vertices[baseAddress + 8] = x - 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 9] = y + 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 10] = x;
+                    vertices[baseAddress + 11] = y;
+
+                    vertices[baseAddress + 12] = x + 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 13] = y + 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 14] = x;
+                    vertices[baseAddress + 15] = y;
+                }
+
+                secondaryFB.begin();
+                Gdx.gl20.glClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+                Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT);
+                Gdx.gl20.glEnable(GL20.GL_BLEND);
+
+                explodeShader.bind();
+                Matrix4 projectedTransformationMatrix = batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix());
+                explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
+
+                mesh.setVertices(vertices, 0, empireSize * 16);
+                // FIXME we can't do everything in a single pass
+                mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, empireSize * 5, true);
+                secondaryFB.end();
+
+                Texture tex = secondaryFB.getColorBufferTexture();
+                blitBatch.setColor(empire.get(0).getAssignedEmpire().getGDXColor());
+                blitBatch.begin();
+                blitBatch.draw(tex, 0, 0, 1, 1);
+                blitBatch.end();
             }
+
+            if (!explodeShader.getLog().isEmpty()) {
+                LOGGER.info("Shader logs (pre dispose):");
+                for (String ln : explodeShader.getLog().split("\n")) {
+                    LOGGER.info(ln);
+                }
+            }
+
+            mesh.dispose();
+            Gdx.gl20.glDisable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
+            batch.getShader().bind();
+
+            if (!explodeShader.getLog().isEmpty()) {
+                LOGGER.info("Shader logs (post dispose):");
+                for (String ln : explodeShader.getLog().split("\n")) {
+                    LOGGER.info(ln);
+                }
+            }
+        } finally {
+            secondaryFB.dispose();
+            tertiaryFB.dispose();
+            blitBatch.dispose();
         }
 
         if (drawing) {
@@ -180,40 +254,46 @@ public class SCSCoreLogic {
     }
 
     @NotNull
-    public static ShaderProgram initializeShader() {
-        ShaderProgram shader = SCSCoreLogic.program;
+    public static ShaderProgram initializeBlitShader() {
+        ShaderProgram shader = SCSCoreLogic.blitShader;
         if (shader != null) {
-            SCSCoreLogic.LOGGER.warn("Shader already initialized");
+            SCSCoreLogic.LOGGER.warn("Blit shader already initialized");
             return shader;
         }
 
-        String vert = SCSCoreLogic.readStringFromResources("star-cell-shader.vert");
-        String frag = SCSCoreLogic.readStringFromResources("star-cell-shader.frag");
+//        shader = SpriteBatch.createDefaultShader();
+//        if (shader != null) {
+//            SCSCoreLogic.blitShader = shader;
+//            return shader;
+//        }
+
+        String vert = SCSCoreLogic.readStringFromResources("star-cell-blit-shader.vert");
+        String frag = SCSCoreLogic.readStringFromResources("star-cell-blit-shader.frag");
 
         if (vert.isEmpty()) {
             StringWriter writer = new StringWriter();
             JLSLContext context = new JLSLContext(new BytecodeDecoder(), new GLSLEncoder(330));
-            context.execute(StarRegionVertexShader.class, new PrintWriter(writer));
+            context.execute(StarRegionBlitVertexShader.class, new PrintWriter(writer));
             vert = writer.toString();
-            SCSCoreLogic.LOGGER.info("Using following vertex shader:\n{}", vert);
+            SCSCoreLogic.LOGGER.info("Using following blit vertex shader:\n{}", vert);
         }
 
         if (frag.isEmpty()) {
             StringWriter writer = new StringWriter();
             JLSLContext context = new JLSLContext(new BytecodeDecoder(), new GLSLEncoder(330));
-            context.execute(StarRegionFragmentShader.class, new PrintWriter(writer));
+            context.execute(StarRegionBlitFragmentShader.class, new PrintWriter(writer));
             frag = writer.toString();
-            SCSCoreLogic.LOGGER.info("Using following fragment shader:\n{}", frag);
+            SCSCoreLogic.LOGGER.info("Using following blit fragment shader:\n{}", frag);
         }
 
-        SCSCoreLogic.program = shader = new ShaderProgram(vert, frag);
+        SCSCoreLogic.blitShader = shader = new ShaderProgram(vert, frag);
 
         if (!shader.isCompiled()) {
-            SCSCoreLogic.program = null;
+            SCSCoreLogic.blitShader = null;
             try {
                 shader.dispose();
             } catch (Exception e) {
-                LOGGER.warn("Unable to dispose shader after failing to compile it", e);
+                LOGGER.warn("Unable to dispose blit shader after failing to compile it", e);
             } finally {
                 Galimulator.panic("Unable to compile shaders (incompatible drivers?).\n\t  ShaderProgram managed status: " + ShaderProgram.getManagedStatus() + "\n\t  Shader logs:\n" + shader.getLog(), false, new RuntimeException("Failed to compile shaders").fillInStackTrace());
             }
@@ -223,15 +303,46 @@ public class SCSCoreLogic {
     }
 
     @NotNull
-    private static ClassNode getClassNodeFromClass(@NotNull Class<?> cl) {
-        try (InputStream is = cl.getClassLoader().getResourceAsStream(cl.getName().replace('.', '/') + ".class")) {
-            ClassReader reader = new ClassReader(is);
-            ClassNode node = new ClassNode();
-            reader.accept(node, 0);
-            return node;
-        } catch (IOException e) {
-            throw new UncheckedIOException("Unable to read classnode from jar for class " + cl, e);
+    public static ShaderProgram initializeExplodeShader() {
+        ShaderProgram shader = SCSCoreLogic.explodeShader;
+        if (shader != null) {
+            SCSCoreLogic.LOGGER.warn("Explode shader already initialized");
+            return shader;
         }
+
+        String vert = SCSCoreLogic.readStringFromResources("star-cell-explode-shader.vert");
+        String frag = SCSCoreLogic.readStringFromResources("star-cell-explode-shader.frag");
+
+        if (vert.isEmpty()) {
+            StringWriter writer = new StringWriter();
+            JLSLContext context = new JLSLContext(new BytecodeDecoder(), new GLSLEncoder(330));
+            context.execute(StarRegionExplodeVertexShader.class, new PrintWriter(writer));
+            vert = writer.toString();
+            SCSCoreLogic.LOGGER.info("Using following explode vertex shader:\n{}", vert);
+        }
+
+        if (frag.isEmpty()) {
+            StringWriter writer = new StringWriter();
+            JLSLContext context = new JLSLContext(new BytecodeDecoder(), new GLSLEncoder(330));
+            context.execute(StarRegionExplodeFragmentShader.class, new PrintWriter(writer));
+            frag = writer.toString();
+            SCSCoreLogic.LOGGER.info("Using following explode fragment shader:\n{}", frag);
+        }
+
+        SCSCoreLogic.explodeShader = shader = new ShaderProgram(vert, frag);
+
+        if (!shader.isCompiled()) {
+            SCSCoreLogic.explodeShader = null;
+            try {
+                shader.dispose();
+            } catch (Exception e) {
+                LOGGER.warn("Unable to dispose explode shader after failing to compile it", e);
+            } finally {
+                Galimulator.panic("Unable to compile shaders (incompatible drivers?).\n\t  ShaderProgram managed status: " + ShaderProgram.getManagedStatus() + "\n\t  Shader logs:\n" + shader.getLog(), false, new RuntimeException("Failed to compile shaders").fillInStackTrace());
+            }
+        }
+
+        return shader;
     }
 
     @NotNull

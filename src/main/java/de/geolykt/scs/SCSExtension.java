@@ -21,12 +21,14 @@ public class SCSExtension extends Extension {
         EventManager.registerListener(new Listener() {
             @EventHandler
             public void afterStart(ApplicationStartedEvent e) {
-                SCSCoreLogic.initializeShader();
+                SCSCoreLogic.initializeExplodeShader();
+                SCSCoreLogic.initializeBlitShader();
             }
 
             @EventHandler
             public void onStop(ApplicationStopEvent e) {
-                SCSCoreLogic.disposeShader();
+                SCSCoreLogic.disposeExplodeShader();
+                SCSCoreLogic.disposeBlitShader();
             }
         });
     }
