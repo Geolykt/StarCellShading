@@ -1,0 +1,111 @@
+plugins {
+    id 'java'
+    id 'java-library'
+    id 'gsl-starplane' version '0.2.0-a20240520'
+    id "com.github.johnrengelman.shadow" version "8.1.1"
+}
+
+group 'de.geolykt'
+version '0.0.1-SNAPSHOT'
+
+// The following statement defines that Java 8 should be used (which is galimulator's runtime version),
+// however if you dare, you can bump the version - just beware that users may lack the knowledge in how to install and run
+// your mod in that case.
+targetCompatibility = compileJava.targetCompatibility = sourceCompatibility = compileJava.sourceCompatibility = '1.8'
+
+repositories {
+    mavenLocal()
+    // stianloader's maven repository, which is the repo where SLAPI and SLL are contianed in (among other stianloader toolchain stuff)
+    maven {
+        name 'stianloader-maven'
+        url 'https://stianloader.org/maven'
+    }
+    mavenCentral()
+
+    /*
+    // Repository required for the backported Java APIs used by our build of JLSL
+    maven {
+        name = "wagyourtail"
+        url = "https://maven.wagyourtail.xyz/releases"
+    }*/
+}
+
+// See the gslStarplane documentation on how to use the starplane block in more detail.
+// As of now the documentation is mostly stored in its README file, but the documentation is still very comprehensive.
+starplane {
+    // Hint: RAS is very powerful. Use with care. Mixins are almost always more appropriate.
+    // Reversible access wideners can be declared like below:
+    // withRAS(rootProject.file("src/main/resources/example-mod.ras"))
+
+    // If you wish, you can define a directory in which eclipse external annotations (EEA) are contained in.
+    // However, this is a feature that is very rarely used, but it's there
+    // eclipseEEA = rootProject.file("src/eclipse-eea")
+
+    mappingsFile("tinyv2", "newStarmap.tinyv2")
+}
+
+configurations {
+    dependencyMods
+    compileOnlyApi.extendsFrom(dependencyMods)
+    compileOnlyApi.extendsFrom(devRuntime)
+    compileOnlyApi.extendsFrom(galimulatorDependencies)
+}
+
+deployMods {
+    from configurations["dependencyMods"]
+}
+
+dependencies {
+    // The versions of SLAPI are listed here: https://stianloader.org/maven/de/geolykt/starloader-api/
+    dependencyMods("de.geolykt:starloader-api:2.0.0-a20240513")
+    // The versions of launcher-micromixin are listed here: https://stianloader.org/maven/org/stianloader/launcher-micromixin/
+    devRuntime "org.stianloader:launcher-micromixin:4.0.0-a20240512"
+    compileOnly "org.stianloader:micromixin-annotations:0.5.0-a20240518"
+    compileOnly "de.geolykt.starloader:starplane-annotations:1.0.0"
+    compileOnlyApi "org.jetbrains:annotations:24.1.0"
+
+    implementation "org.stianloader:jlsl:1.0.0-a20240521"
+    /*
+    implementation (group: 'org.stianloader', name: 'jlsl', version: '1.0.0', classifier: 'j8') {
+        exclude group: 'org.ow2.asm', module: 'asm-tree'
+        exclude group: 'org.ow2.asm', module: 'asm'
+    }*/
+
+    // https://mvnrepository.com/artifact/org.danilopianini/java-quadtree
+    implementation 'org.danilopianini:java-quadtree:0.2.0'
+}
+
+remapJar {
+    archiveClassifier = 'remapped-slim'
+    fromJar jar
+    dependsOn jar
+}
+
+task shadowJarDev(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar, dependsOn: classes) {
+    archiveClassifier = 'dev-fat'
+
+    from sourceSets.main.output
+    configurations = [project.configurations["runtimeClasspath"]]
+}
+
+shadowJar {
+    archiveClassifier = 'remapped-fat'
+    from(zipTree(remapJar.archiveFile))
+    dependsOn(remapJar)
+}
+
+runMods {
+    from shadowJarDev
+}
+
+build {
+    dependsOn shadowJar
+}
+
+// The below block is only really needed when shading in external dependencies, see
+// https://github.com/Starloader-project/GslStarplane/tree/6a3c5e0e190fb948badac89469012e2a172fcb90?tab=readme-ov-file#dealing-with-shaded-dependencies
+// However, having this block generally doesn't hurt for as long as you are aware of
+// the differences of api/implementation and compileOnlyApi/compileOnly.
+genEclipseRuns {
+    additionalRuntimeDependency("main", configurations["runtimeClasspath"])
+}

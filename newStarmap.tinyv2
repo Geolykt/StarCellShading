@@ -1,0 +1,42 @@
+tiny	2	0	intermediary	named
+c	snoddasmannen/galimulator/class_29	snoddasmannen/galimulator/QuadTreePair
+	f	Ljava/util/Vector;	a	parentStars
+	m	()Ljava/util/Vector;	a	getAverageLocations
+		c	Obtain the average positions of the pair;\nThe X and Y axes should be self-explainatory, the Z axis is the radius or maximum distance a star has from the cluster.\n\nThe returned Vector has two Vector3 objects for the parent and child QuadTree star cluster,\nthe parent generally being the first entry but this method makes no guarantees that this behaviour\nalways applies.
+	m	(Ljava/util/Vector;Ljava/util/Vector;)V	<init>	<init>
+		p	1		parentStars
+		p	2		childStars
+	m	(Ljava/util/Vector;)Lcom/badlogic/gdx/math/Vector3;	a	getAveragePosition
+		c	Z-Axis is radius or maximum distance a star has from the center of the provided cluster
+		p	1		stars
+	f	Ljava/util/Vector;	c	averagePositions
+	f	Ljava/util/Vector;	b	childStars
+c	snoddasmannen/galimulator/QuadTree	snoddasmannen/galimulator/QuadTree
+	m	(Lsnoddasmannen/galimulator/QuadTree;)Lsnoddasmannen/galimulator/Star;	c	getNearestStar
+		p	1		to
+	m	()Z	h	subdivideTree
+	m	()V	c	drawQuadTreeBoundingBox
+	m	()F	b	getContainerWidth
+	f	Lsnoddasmannen/galimulator/Star;	b	storedStar
+	m	()Ljava/util/Vector;	e	getStoredStars
+	f	Lsnoddasmannen/galimulator/QuadTree;	j	northeast
+	f	Lsnoddasmannen/galimulator/QuadTree;	i	northwest
+	f	Ljava/util/Vector;	l	pairs
+	m	()Ljava/util/Vector;	get_l	getPairsFast
+	f	Lsnoddasmannen/galimulator/QuadTree;	h	southeast
+	m	()F	g	getWidth
+	f	Lsnoddasmannen/galimulator/QuadTree;	g	southwest
+	m	(Lsnoddasmannen/galimulator/QuadTree;)F	a	__DO_NOT_USE_estimateDistance
+		p	1		to
+	m	(Lsnoddasmannen/galimulator/QuadTree;Lsnoddasmannen/galimulator/QuadTree;)Ljava/util/Vector;	a	generatePairsBetween
+		p	0		parent
+		p	1		child
+c	snoddasmannen/galimulator/Star	snoddasmannen/galimulator/Star
+	f	[F	t	starRegionVertices
+	m	(Lsnoddasmannen/galimulator/Star$PolygonType;)V	a	setStarRegionTexture
+		p	1	star$PolygonType	texture
+	m	()V	y	drawStarBorders
+	m	(Ljava/util/List;)V	a	calculateVoronoiVertices
+		p	1	list	voronoiEdges
+	m	(Lsnoddasmannen/galimulator/Star;Lsnoddasmannen/galimulator/Star;)D	b	distanceBetween
+	m	(FF)F	b	distanceToSq
