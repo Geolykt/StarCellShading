@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'de.geolykt'
-version '0.0.1-SNAPSHOT'
+version '0.1.0'
 
 // The following statement defines that Java 8 should be used (which is galimulator's runtime version),
 // however if you dare, you can bump the version - just beware that users may lack the knowledge in how to install and run
@@ -21,26 +21,9 @@ repositories {
         url 'https://stianloader.org/maven'
     }
     mavenCentral()
-
-    /*
-    // Repository required for the backported Java APIs used by our build of JLSL
-    maven {
-        name = "wagyourtail"
-        url = "https://maven.wagyourtail.xyz/releases"
-    }*/
 }
 
-// See the gslStarplane documentation on how to use the starplane block in more detail.
-// As of now the documentation is mostly stored in its README file, but the documentation is still very comprehensive.
 starplane {
-    // Hint: RAS is very powerful. Use with care. Mixins are almost always more appropriate.
-    // Reversible access wideners can be declared like below:
-    // withRAS(rootProject.file("src/main/resources/example-mod.ras"))
-
-    // If you wish, you can define a directory in which eclipse external annotations (EEA) are contained in.
-    // However, this is a feature that is very rarely used, but it's there
-    // eclipseEEA = rootProject.file("src/eclipse-eea")
-
     mappingsFile("tinyv2", "newStarmap.tinyv2")
 }
 
@@ -64,15 +47,15 @@ dependencies {
     compileOnly "de.geolykt.starloader:starplane-annotations:1.0.0"
     compileOnlyApi "org.jetbrains:annotations:24.1.0"
 
-    implementation "org.stianloader:jlsl:1.0.0-a20240522"
-    /*
-    implementation (group: 'org.stianloader', name: 'jlsl', version: '1.0.0', classifier: 'j8') {
+    implementation ("org.stianloader:jlsl:1.0.0-a20240522") {
         exclude group: 'org.ow2.asm', module: 'asm-tree'
         exclude group: 'org.ow2.asm', module: 'asm'
-    }*/
+    }
 
     // https://mvnrepository.com/artifact/org.danilopianini/java-quadtree
-    implementation 'org.danilopianini:java-quadtree:0.2.0'
+    implementation ("org.danilopianini:java-quadtree:0.2.0") {
+        exclude group: 'com.google.guava', module: 'guava'
+    }
 }
 
 remapJar {
@@ -102,10 +85,6 @@ build {
     dependsOn shadowJar
 }
 
-// The below block is only really needed when shading in external dependencies, see
-// https://github.com/Starloader-project/GslStarplane/tree/6a3c5e0e190fb948badac89469012e2a172fcb90?tab=readme-ov-file#dealing-with-shaded-dependencies
-// However, having this block generally doesn't hurt for as long as you are aware of
-// the differences of api/implementation and compileOnlyApi/compileOnly.
 genEclipseRuns {
     additionalRuntimeDependency("main", configurations["runtimeClasspath"])
 }

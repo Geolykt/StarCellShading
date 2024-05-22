@@ -57,6 +57,8 @@ public class SCSCoreLogic {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
     private static final float REGION_SIZE = GRANULARITY_FACTOR * 16;
+    private static final int MAX_INDICES = 0x1000;
+    private static final int MAX_INDICES_MASK = 0x0FFF;
 
     public static void disposeBlitShader() {
         ShaderProgram shader = SCSCoreLogic.blitShader;
@@ -133,6 +135,7 @@ public class SCSCoreLogic {
             maxlen = Math.max(maxlen, empire.size());
         }
 
+        maxlen = Math.min(MAX_INDICES, maxlen);
         float[] vertices = new float[maxlen * 16];
         Mesh mesh = new Mesh(false, maxlen * 4, maxlen * 5, ATTRIBUTE_VERTEX_POSITION, ATTRIBUTE_CENTER_POSITION);
 
@@ -161,12 +164,23 @@ public class SCSCoreLogic {
 
         try {
             for (List<Star> empire : empires.values()) {
+
+                secondaryFB.begin();
+                Gdx.gl20.glClearColor(0.0F, 0.0F, 0.0F, 0.0F);
+                Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT);
+                Gdx.gl20.glEnable(GL20.GL_BLEND);
+                Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
+                Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+
+                explodeShader.bind();
+                Matrix4 projectedTransformationMatrix = batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix());
+                explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
+
                 int i;
                 int empireSize = i = empire.size();
                 while (i-- != 0) {
-
                     Star s = empire.get(i);
-                    int baseAddress = i * 16;
+                    int baseAddress = (i & MAX_INDICES_MASK) * 16;
                     float x = s.getX();
                     float y = s.getY();
 
@@ -189,22 +203,12 @@ public class SCSCoreLogic {
                     vertices[baseAddress + 13] = y + BOX_SIZE * GRANULARITY_FACTOR;
                     vertices[baseAddress + 14] = x;
                     vertices[baseAddress + 15] = y;
+
+                    if ((i & MAX_INDICES_MASK) == 0) {
+                        mesh.setVertices(vertices, 0, Math.min(empireSize - i, MAX_INDICES) * 16);
+                        mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, Math.min(empireSize - i, MAX_INDICES) * 5, true);
+                    }
                 }
-
-                secondaryFB.begin();
-                Gdx.gl20.glClearColor(0.0F, 0.0F, 0.0F, 0.0F);
-                Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT);
-                Gdx.gl20.glEnable(GL20.GL_BLEND);
-                Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
-                Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
-
-                explodeShader.bind();
-                Matrix4 projectedTransformationMatrix = batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix());
-                explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
-
-                mesh.setVertices(vertices, 0, empireSize * 16);
-                // FIXME we can't do everything in a single pass (apparently libGDX already sorta ignores the cap - lul)
-                mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, empireSize * 5, true);
 
                 secondaryFB.end();
                 tertiaryFB.begin();

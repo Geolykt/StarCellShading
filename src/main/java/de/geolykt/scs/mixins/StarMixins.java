@@ -2,12 +2,10 @@ package de.geolykt.scs.mixins;
 
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.stianloader.micromixin.transform.internal.util.Objects;
 
 import de.geolykt.scs.StarAccess;
-import de.geolykt.starloader.impl.GalimulatorImplementation;
 
 import snoddasmannen.galimulator.Star;
 
