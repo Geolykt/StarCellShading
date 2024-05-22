@@ -152,14 +152,12 @@ public class SCSCoreLogic {
         org.lwjgl.opengl.GL31.glPrimitiveRestartIndex(0xFFFF);
         Gdx.gl20.glEnable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
 
-        FrameBuffer secondaryFB = new FrameBuffer(Pixmap.Format.Alpha, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
+        FrameBuffer secondaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
         FrameBuffer tertiaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
         SpriteBatch secondaryBlitBatch = new SpriteBatch(1, blitShader);
         SpriteBatch primaryBlitBatch = new SpriteBatch(1);
         secondaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
-        secondaryBlitBatch.enableBlending();
         primaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
-        primaryBlitBatch.enableBlending();
 
         try {
             for (List<Star> empire : empires.values()) {
@@ -205,19 +203,13 @@ public class SCSCoreLogic {
                 explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
 
                 mesh.setVertices(vertices, 0, empireSize * 16);
-                // FIXME we can't do everything in a single pass
-                for (int j = 0; j < empireSize; j++) {
-                    mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, j * 5, 4, true);
-                }
-//                mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, empireSize * 5, true);
-
-
-
+                // FIXME we can't do everything in a single pass (apparently libGDX already sorta ignores the cap - lul)
+                mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, empireSize * 5, true);
 
                 secondaryFB.end();
-
                 tertiaryFB.begin();
                 secondaryBlitBatch.setColor(empire.get(0).getAssignedEmpire().getGDXColor());
+                secondaryBlitBatch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
                 secondaryBlitBatch.begin();
                 secondaryBlitBatch.draw(secondaryFB.getColorBufferTexture(), 0, 0, 1, 1);
                 secondaryBlitBatch.end();
@@ -280,12 +272,6 @@ public class SCSCoreLogic {
             SCSCoreLogic.LOGGER.warn("Blit shader already initialized");
             return shader;
         }
-
-//        shader = SpriteBatch.createDefaultShader();
-//        if (shader != null) {
-//            SCSCoreLogic.blitShader = shader;
-//            return shader;
-//        }
 
         String vert = SCSCoreLogic.readStringFromResources("star-cell-blit-shader.vert");
         String frag = SCSCoreLogic.readStringFromResources("star-cell-blit-shader.frag");

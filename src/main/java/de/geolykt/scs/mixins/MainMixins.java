@@ -12,7 +12,6 @@ import com.example.Main;
 
 @Mixin(Main.class)
 public class MainMixins {
-    /*
     @ModifyArg(
             target = @Desc(value = "main", args = String[].class),
             at = @At(value = "INVOKE",
@@ -21,14 +20,14 @@ public class MainMixins {
                     value = "<init>",
                     args = {ApplicationListener.class, LwjglApplicationConfiguration.class}
                 )
-            ),
-            allow = 1,
-            index = -1,
-            expect = 1,
-            require = 0
+            )//,
+//            allow = 1,
+//            index = -1,
+//            expect = 1,
+//            require = 0
     )
     private static LwjglApplicationConfiguration scs$enableGL30(LwjglApplicationConfiguration config) {
         config.useGL30 = true;
         return config;
-    }*/
+    }
 }

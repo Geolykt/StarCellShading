@@ -23,9 +23,9 @@ public class StarRegionExplodeFragmentShader extends FragmentShader {
     @Override
     public void main() {
         Vec2 diff = this.v_origincoords.sub(this.f_centerpos);
-        Vec4 color = new Vec4(1, 1, 1, Math.min(Math.max(1 - Math.sqrt(diff.x * diff.x + diff.y * diff.y) * 3, 0) * 1.3F, 1));
-        color.w = Math.min(Math.max((GLSLMath.smoothstep(0.2, 1, color.w) - 0.2) * (1 / 0.8), 0), 0.6);
+        Vec4 color = new Vec4(1, 1, 1, Math.min(Math.max(1 - Math.sqrt(diff.x * diff.x + diff.y * diff.y) * 4, 0) * 1.3F, 1));
+        color.w = Math.min(Math.max((GLSLMath.smoothstep(0.2, 1, color.w) - 0.2), 0), 1);
 
-        super.gl_FragColor = color;
+        super.gl_FragColor = new Vec4(1, 1, 1, color.w);
     }
 }
