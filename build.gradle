@@ -64,7 +64,7 @@ dependencies {
     compileOnly "de.geolykt.starloader:starplane-annotations:1.0.0"
     compileOnlyApi "org.jetbrains:annotations:24.1.0"
 
-    implementation "org.stianloader:jlsl:1.0.0"
+    implementation "org.stianloader:jlsl:1.0.0-a20240522"
     /*
     implementation (group: 'org.stianloader', name: 'jlsl', version: '1.0.0', classifier: 'j8') {
         exclude group: 'org.ow2.asm', module: 'asm-tree'

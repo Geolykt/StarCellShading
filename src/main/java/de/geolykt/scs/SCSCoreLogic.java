@@ -24,7 +24,6 @@ import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.graphics.Pixmap;
-import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.VertexAttribute;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
@@ -54,6 +53,7 @@ public class SCSCoreLogic {
 
     private static ShaderProgram explodeShader;
     private static final float GRANULARITY_FACTOR = 0.035F;
+    private static final int BOX_SIZE = 6;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
     private static final float REGION_SIZE = GRANULARITY_FACTOR * 16;
@@ -152,11 +152,14 @@ public class SCSCoreLogic {
         org.lwjgl.opengl.GL31.glPrimitiveRestartIndex(0xFFFF);
         Gdx.gl20.glEnable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
 
-        FrameBuffer secondaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
+        FrameBuffer secondaryFB = new FrameBuffer(Pixmap.Format.Alpha, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
         FrameBuffer tertiaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
-        SpriteBatch blitBatch = new SpriteBatch(1, blitShader);
-        blitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
-        blitBatch.enableBlending();
+        SpriteBatch secondaryBlitBatch = new SpriteBatch(1, blitShader);
+        SpriteBatch primaryBlitBatch = new SpriteBatch(1);
+        secondaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
+        secondaryBlitBatch.enableBlending();
+        primaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
+        primaryBlitBatch.enableBlending();
 
         try {
             for (List<Star> empire : empires.values()) {
@@ -169,23 +172,23 @@ public class SCSCoreLogic {
                     float x = s.getX();
                     float y = s.getY();
 
-                    vertices[baseAddress] = x - 4 * GRANULARITY_FACTOR;
-                    vertices[baseAddress + 1] = y - 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress] = x - BOX_SIZE * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 1] = y - BOX_SIZE * GRANULARITY_FACTOR;
                     vertices[baseAddress + 2] = x;
                     vertices[baseAddress + 3] = y;
 
-                    vertices[baseAddress + 4] = x + 4 * GRANULARITY_FACTOR;
-                    vertices[baseAddress + 5] = y - 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 4] = x + BOX_SIZE * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 5] = y - BOX_SIZE * GRANULARITY_FACTOR;
                     vertices[baseAddress + 6] = x;
                     vertices[baseAddress + 7] = y;
 
-                    vertices[baseAddress + 8] = x - 4 * GRANULARITY_FACTOR;
-                    vertices[baseAddress + 9] = y + 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 8] = x - BOX_SIZE * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 9] = y + BOX_SIZE * GRANULARITY_FACTOR;
                     vertices[baseAddress + 10] = x;
                     vertices[baseAddress + 11] = y;
 
-                    vertices[baseAddress + 12] = x + 4 * GRANULARITY_FACTOR;
-                    vertices[baseAddress + 13] = y + 4 * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 12] = x + BOX_SIZE * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 13] = y + BOX_SIZE * GRANULARITY_FACTOR;
                     vertices[baseAddress + 14] = x;
                     vertices[baseAddress + 15] = y;
                 }
@@ -194,6 +197,8 @@ public class SCSCoreLogic {
                 Gdx.gl20.glClearColor(0.0F, 0.0F, 0.0F, 0.0F);
                 Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT);
                 Gdx.gl20.glEnable(GL20.GL_BLEND);
+                Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
+                Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
                 explodeShader.bind();
                 Matrix4 projectedTransformationMatrix = batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix());
@@ -201,15 +206,27 @@ public class SCSCoreLogic {
 
                 mesh.setVertices(vertices, 0, empireSize * 16);
                 // FIXME we can't do everything in a single pass
-                mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, empireSize * 5, true);
+                for (int j = 0; j < empireSize; j++) {
+                    mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, j * 5, 4, true);
+                }
+//                mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, empireSize * 5, true);
+
+
+
+
                 secondaryFB.end();
 
-                Texture tex = secondaryFB.getColorBufferTexture();
-                blitBatch.setColor(empire.get(0).getAssignedEmpire().getGDXColor());
-                blitBatch.begin();
-                blitBatch.draw(tex, 0, 0, 1, 1);
-                blitBatch.end();
+                tertiaryFB.begin();
+                secondaryBlitBatch.setColor(empire.get(0).getAssignedEmpire().getGDXColor());
+                secondaryBlitBatch.begin();
+                secondaryBlitBatch.draw(secondaryFB.getColorBufferTexture(), 0, 0, 1, 1);
+                secondaryBlitBatch.end();
+                tertiaryFB.end();
             }
+
+            primaryBlitBatch.begin();
+            primaryBlitBatch.draw(tertiaryFB.getColorBufferTexture(), 0, 0, 1, 1);
+            primaryBlitBatch.end();
 
             if (!explodeShader.getLog().isEmpty()) {
                 LOGGER.info("Shader logs (pre dispose):");
@@ -219,6 +236,7 @@ public class SCSCoreLogic {
             }
 
             mesh.dispose();
+            Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
             Gdx.gl20.glDisable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
             batch.getShader().bind();
 
@@ -231,9 +249,11 @@ public class SCSCoreLogic {
         } finally {
             secondaryFB.dispose();
             tertiaryFB.dispose();
-            blitBatch.dispose();
+            primaryBlitBatch.dispose();
+            secondaryBlitBatch.dispose();
         }
 
+        batch.getShader().bind();
         if (drawing) {
             batch.begin();
         }
