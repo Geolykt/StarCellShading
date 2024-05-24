@@ -6,6 +6,7 @@ import org.spongepowered.asm.mixin.injection.Desc;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.Slice;
 
+import de.geolykt.scs.SCSConfig;
 import de.geolykt.scs.SCSCoreLogic;
 
 import snoddasmannen.galimulator.Settings.EnumSettings;
@@ -26,6 +27,10 @@ public class SpaceMixins {
     private static Object starcellshading$redirectDrawStarRegions(EnumSettings settings) {
         if (settings != EnumSettings.DRAW_STAR_REGIONS) {
             throw new IllegalArgumentException("settings != D_S_R");
+        }
+
+        if (SCSConfig.USE_VANILLA_CELL_SHADING.get() || settings.getValue() == Boolean.FALSE) {
+            return settings.getValue();
         }
 
         SCSCoreLogic.drawRegionsAsync();
