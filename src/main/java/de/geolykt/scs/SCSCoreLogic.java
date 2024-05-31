@@ -111,8 +111,8 @@ public class SCSCoreLogic {
         Vector3 minCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
         Vector3 maxCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
 
-        minCoords.sub(REGION_SIZE * 2);
-        maxCoords.add(REGION_SIZE * 2);
+        minCoords.sub(SCSCoreLogic.REGION_SIZE * 2);
+        maxCoords.add(SCSCoreLogic.REGION_SIZE * 2);
 
         List<Star> stars = quadTree.query(minCoords.x, minCoords.y, maxCoords.x, maxCoords.y);
 
@@ -135,9 +135,9 @@ public class SCSCoreLogic {
             maxlen = Math.max(maxlen, empire.size());
         }
 
-        maxlen = Math.min(MAX_INDICES, maxlen);
+        maxlen = Math.min(SCSCoreLogic.MAX_INDICES, maxlen);
         float[] vertices = new float[maxlen * 16];
-        Mesh mesh = new Mesh(false, maxlen * 4, maxlen * 5, ATTRIBUTE_VERTEX_POSITION, ATTRIBUTE_CENTER_POSITION);
+        Mesh mesh = new Mesh(false, maxlen * 4, maxlen * 5, SCSCoreLogic.ATTRIBUTE_VERTEX_POSITION, SCSCoreLogic.ATTRIBUTE_CENTER_POSITION);
 
         short[] indices = new short[maxlen * 5];
         // 0, 1, 2, 3, <RESET>, 4, 5, 6, 7, <RESET>, 8, 9, [...]
@@ -160,7 +160,9 @@ public class SCSCoreLogic {
         SpriteBatch secondaryBlitBatch = new SpriteBatch(1, blitShader);
         SpriteBatch primaryBlitBatch = new SpriteBatch(1);
         secondaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
+        secondaryBlitBatch.setBlendFunction(GL20.GL_SRC_ALPHA_SATURATE, GL20.GL_ONE_MINUS_SRC_ALPHA);
         primaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
+        primaryBlitBatch.setColor(1F, 1F, 1F, SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue());
 
         try {
             for (List<Star> empire : empires.values()) {
@@ -170,50 +172,52 @@ public class SCSCoreLogic {
                 Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT);
                 Gdx.gl20.glEnable(GL20.GL_BLEND);
                 Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
-                Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA_SATURATE, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
                 explodeShader.bind();
                 Matrix4 projectedTransformationMatrix = batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix());
                 explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
+                explodeShader.setUniformf("u_explodeFactor", SCSConfig.EXPLODE_FACTOR.getValue());
+                explodeShader.setUniformf("u_explodeDecay", SCSConfig.EXPLODE_DECAY.getValue());
+                explodeShader.setUniformf("u_explodeFloor", SCSConfig.EXPLODE_FLOOR.getValue());
 
                 int i;
                 int empireSize = i = empire.size();
                 while (i-- != 0) {
                     Star s = empire.get(i);
-                    int baseAddress = (i & MAX_INDICES_MASK) * 16;
+                    int baseAddress = (i & SCSCoreLogic.MAX_INDICES_MASK) * 16;
                     float x = s.getX();
                     float y = s.getY();
 
-                    vertices[baseAddress] = x - BOX_SIZE * GRANULARITY_FACTOR;
-                    vertices[baseAddress + 1] = y - BOX_SIZE * GRANULARITY_FACTOR;
+                    vertices[baseAddress] = x - SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
+                    vertices[baseAddress + 1] = y - SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
                     vertices[baseAddress + 2] = x;
                     vertices[baseAddress + 3] = y;
 
-                    vertices[baseAddress + 4] = x + BOX_SIZE * GRANULARITY_FACTOR;
-                    vertices[baseAddress + 5] = y - BOX_SIZE * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 4] = x + SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
+                    vertices[baseAddress + 5] = y - SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
                     vertices[baseAddress + 6] = x;
                     vertices[baseAddress + 7] = y;
 
-                    vertices[baseAddress + 8] = x - BOX_SIZE * GRANULARITY_FACTOR;
-                    vertices[baseAddress + 9] = y + BOX_SIZE * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 8] = x - SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
+                    vertices[baseAddress + 9] = y + SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
                     vertices[baseAddress + 10] = x;
                     vertices[baseAddress + 11] = y;
 
-                    vertices[baseAddress + 12] = x + BOX_SIZE * GRANULARITY_FACTOR;
-                    vertices[baseAddress + 13] = y + BOX_SIZE * GRANULARITY_FACTOR;
+                    vertices[baseAddress + 12] = x + SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
+                    vertices[baseAddress + 13] = y + SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
                     vertices[baseAddress + 14] = x;
                     vertices[baseAddress + 15] = y;
 
-                    if ((i & MAX_INDICES_MASK) == 0) {
-                        mesh.setVertices(vertices, 0, Math.min(empireSize - i, MAX_INDICES) * 16);
-                        mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, Math.min(empireSize - i, MAX_INDICES) * 5, true);
+                    if ((i & SCSCoreLogic.MAX_INDICES_MASK) == 0) {
+                        mesh.setVertices(vertices, 0, Math.min(empireSize - i, SCSCoreLogic.MAX_INDICES) * 16);
+                        mesh.render(explodeShader, GL20.GL_TRIANGLE_STRIP, 0, Math.min(empireSize - i, SCSCoreLogic.MAX_INDICES) * 5, true);
                     }
                 }
 
                 secondaryFB.end();
                 tertiaryFB.begin();
                 secondaryBlitBatch.setColor(empire.get(0).getAssignedEmpire().getGDXColor());
-                secondaryBlitBatch.setBlendFunction(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
                 secondaryBlitBatch.begin();
                 secondaryBlitBatch.draw(secondaryFB.getColorBufferTexture(), 0, 0, 1, 1);
                 secondaryBlitBatch.end();
@@ -225,9 +229,9 @@ public class SCSCoreLogic {
             primaryBlitBatch.end();
 
             if (!explodeShader.getLog().isEmpty()) {
-                LOGGER.info("Shader logs (pre dispose):");
+                SCSCoreLogic.LOGGER.info("Shader logs (pre dispose):");
                 for (String ln : explodeShader.getLog().split("\n")) {
-                    LOGGER.info(ln);
+                    SCSCoreLogic.LOGGER.info(ln);
                 }
             }
 
@@ -237,9 +241,9 @@ public class SCSCoreLogic {
             batch.getShader().bind();
 
             if (!explodeShader.getLog().isEmpty()) {
-                LOGGER.info("Shader logs (post dispose):");
+                SCSCoreLogic.LOGGER.info("Shader logs (post dispose):");
                 for (String ln : explodeShader.getLog().split("\n")) {
-                    LOGGER.info(ln);
+                    SCSCoreLogic.LOGGER.info(ln);
                 }
             }
         } finally {
@@ -303,7 +307,7 @@ public class SCSCoreLogic {
             try {
                 shader.dispose();
             } catch (Exception e) {
-                LOGGER.warn("Unable to dispose blit shader after failing to compile it", e);
+                SCSCoreLogic.LOGGER.warn("Unable to dispose blit shader after failing to compile it", e);
             } finally {
                 Galimulator.panic("Unable to compile shaders (incompatible drivers?).\n\t  ShaderProgram managed status: " + ShaderProgram.getManagedStatus() + "\n\t  Shader logs:\n" + shader.getLog(), false, new RuntimeException("Failed to compile shaders").fillInStackTrace());
             }

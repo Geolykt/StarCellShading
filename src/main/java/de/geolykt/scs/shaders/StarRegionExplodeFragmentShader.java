@@ -12,6 +12,12 @@ import org.jglrxavpok.jlsl.glsl.Vec4;
 public class StarRegionExplodeFragmentShader extends FragmentShader {
     @Uniform
     Mat4 u_projTrans;
+    @Uniform
+    double u_explodeDecay;
+    @Uniform
+    double u_explodeFactor;
+    @Uniform
+    double u_explodeFloor;
 
     @In
     @Flat
@@ -23,9 +29,9 @@ public class StarRegionExplodeFragmentShader extends FragmentShader {
     @Override
     public void main() {
         Vec2 diff = this.v_origincoords.sub(this.f_centerpos);
-        Vec4 color = new Vec4(1, 1, 1, Math.min(Math.max(1 - Math.sqrt(diff.x * diff.x + diff.y * diff.y) * 4, 0) * 1.3F, 1));
-        color.w = Math.min(Math.max((GLSLMath.smoothstep(0.2, 1, color.w) - 0.2), 0), 1);
+        Vec4 color = new Vec4(1, 1, 1, (1 - Math.sqrt(diff.x * diff.x + diff.y * diff.y) * this.u_explodeDecay) * this.u_explodeFactor);
+        color.w = Math.min(Math.max((GLSLMath.smoothstep(this.u_explodeFloor, 1, color.w) - this.u_explodeFloor), 0), 1);
 
-        super.gl_FragColor = new Vec4(1, 1, 1, color.w);
+        super.gl_FragColor = color;
     }
 }

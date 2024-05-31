@@ -45,8 +45,12 @@ public class SCSExtension extends Extension {
         if (Files.exists(config)) {
             try {
                 JSONObject json = new JSONObject(new String(Files.readAllBytes(config), StandardCharsets.UTF_8));
-                SCSConfig.USE_VANILLA_CELL_SHADING.set(json.getBoolean(SCSConfig.USE_VANILLA_CELL_SHADING.getName()));
-            } catch (JSONException | IOException e1) {
+                SCSConfig.USE_VANILLA_CELL_SHADING.set(json.optBoolean(SCSConfig.USE_VANILLA_CELL_SHADING.getName(), SCSConfig.USE_VANILLA_CELL_SHADING.getDefault()));
+                SCSConfig.MASTER_ALPHA_MULTIPLIER.setValue(json.optFloat(SCSConfig.MASTER_ALPHA_MULTIPLIER.getName(), SCSConfig.MASTER_ALPHA_MULTIPLIER.getDefault()));
+                SCSConfig.EXPLODE_FACTOR.setValue(json.optFloat(SCSConfig.EXPLODE_FACTOR.getName(), SCSConfig.EXPLODE_FACTOR.getDefault()));
+                SCSConfig.EXPLODE_DECAY.setValue(json.optFloat(SCSConfig.EXPLODE_DECAY.getName(), SCSConfig.EXPLODE_DECAY.getDefault()));
+                SCSConfig.EXPLODE_FLOOR.setValue(json.optFloat(SCSConfig.EXPLODE_FLOOR.getName(), SCSConfig.EXPLODE_FLOOR.getDefault()));
+                } catch (JSONException | IOException e1) {
                 this.getLogger().warn("Unable to read configuration; Ignoring it.", e1);
             }
         } else {
@@ -62,7 +66,13 @@ public class SCSExtension extends Extension {
             if (parent != null) {
                 Files.createDirectories(parent);
             }
-            Files.write(file, ("{ \"" + SCSConfig.USE_VANILLA_CELL_SHADING.getName() + "\": " + SCSConfig.USE_VANILLA_CELL_SHADING.get() + "}").getBytes(StandardCharsets.UTF_8));
+            JSONObject json = new JSONObject();
+            json.put(SCSConfig.USE_VANILLA_CELL_SHADING.getName(), SCSConfig.USE_VANILLA_CELL_SHADING.get().booleanValue());
+            json.put(SCSConfig.MASTER_ALPHA_MULTIPLIER.getName(), SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue());
+            json.put(SCSConfig.EXPLODE_FACTOR.getName(), SCSConfig.EXPLODE_FACTOR.getValue());
+            json.put(SCSConfig.EXPLODE_DECAY.getName(), SCSConfig.EXPLODE_DECAY.getValue());
+            json.put(SCSConfig.EXPLODE_FLOOR.getName(), SCSConfig.EXPLODE_FLOOR.getValue());
+            Files.write(file, json.toString(2).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             this.getLogger().warn("Unable to save configuration", e);
         }

@@ -19,7 +19,7 @@ public class StarRegionBlitFragmentShader extends FragmentShader {
     @Override
     public void main() {
         Vec4 color = this.v_color;
-        color.w = this.texture(this.u_texture, this.v_texCoords).x;
+        color.w = this.texture(this.u_texture, this.v_texCoords).w;
         super.gl_FragColor = color;
     }
 }
