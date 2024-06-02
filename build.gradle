@@ -1,8 +1,7 @@
 plugins {
     id 'java'
     id 'java-library'
-    id 'gsl-starplane' version '0.2.0-a20240520'
-    id "com.github.johnrengelman.shadow" version "8.1.1"
+    id 'gsl-starplane' version '0.2.0-a20240531'
 }
 
 group 'de.geolykt'
@@ -40,49 +39,38 @@ deployMods {
 
 dependencies {
     // The versions of SLAPI are listed here: https://stianloader.org/maven/de/geolykt/starloader-api/
-    dependencyMods("de.geolykt:starloader-api:2.0.0-a20240513")
+    dependencyMods("de.geolykt:starloader-api:2.0.0")
     // The versions of launcher-micromixin are listed here: https://stianloader.org/maven/org/stianloader/launcher-micromixin/
     devRuntime "org.stianloader:launcher-micromixin:4.0.0-a20240512"
     compileOnly "org.stianloader:micromixin-annotations:0.5.0-a20240518"
     compileOnly "de.geolykt.starloader:starplane-annotations:1.0.0"
     compileOnlyApi "org.jetbrains:annotations:24.1.0"
 
+    // Remember to adjust the version here to the version used in the extension.json, too!
     implementation ("org.stianloader:jlsl:1.0.0-a20240522") {
         exclude group: 'org.ow2.asm', module: 'asm-tree'
         exclude group: 'org.ow2.asm', module: 'asm'
     }
 
     // https://mvnrepository.com/artifact/org.danilopianini/java-quadtree
+    // Remember to adjust the version here to the version used in the extension.json, too!
     implementation ("org.danilopianini:java-quadtree:0.2.0") {
         exclude group: 'com.google.guava', module: 'guava'
     }
 }
 
 remapJar {
-    archiveClassifier = 'remapped-slim'
+    archiveClassifier = 'remapped'
     fromJar jar
     dependsOn jar
 }
 
-task shadowJarDev(type: com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar, dependsOn: classes) {
-    archiveClassifier = 'dev-fat'
-
-    from sourceSets.main.output
-    configurations = [project.configurations["runtimeClasspath"]]
-}
-
-shadowJar {
-    archiveClassifier = 'remapped-fat'
-    from(zipTree(remapJar.archiveFile))
-    dependsOn(remapJar)
-}
-
 runMods {
-    from shadowJarDev
+    from remapJar
 }
 
 build {
-    dependsOn shadowJar
+    dependsOn remapJar
 }
 
 genEclipseRuns {

@@ -82,7 +82,7 @@ public class SCSCoreLogic {
 
     public static void drawRegionsAsync() {
         FlexibleQuadTree<Star> quadTree = new FlexibleQuadTree<>(64);
-        for (Star s : Galimulator.getStarList()) {
+        for (Star s : Galimulator.getUniverse().getStarsView()) {
             quadTree.insert(s, s.getX(), s.getY());
         }
 
@@ -217,7 +217,7 @@ public class SCSCoreLogic {
 
                 secondaryFB.end();
                 tertiaryFB.begin();
-                secondaryBlitBatch.setColor(empire.get(0).getAssignedEmpire().getGDXColor());
+                secondaryBlitBatch.setColor(empire.get(0).getEmpire().getGDXColor());
                 secondaryBlitBatch.begin();
                 secondaryBlitBatch.draw(secondaryFB.getColorBufferTexture(), 0, 0, 1, 1);
                 secondaryBlitBatch.end();
@@ -267,7 +267,7 @@ public class SCSCoreLogic {
                 return fun.apply(star).toFloatBits();
             }
         } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_DEFAULT_MAPMODE)) {
-            return star.getAssignedEmpire().getGDXColor().toFloatBits();
+            return star.getEmpire().getGDXColor().toFloatBits();
         }
 
         return Color.WHITE_FLOAT_BITS;
