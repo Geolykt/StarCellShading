@@ -12,12 +12,12 @@ import snoddasmannen.galimulator.rendersystem.RenderItem;
 
 @Mixin(RenderItem.class)
 public class RenderItemMixins implements RenderItemAccess {
-    @Shadow(aliases = {"b", "aabb", "bounds"})
-    Rectangle boundingBox;
+    @Shadow
+    private Rectangle b;
 
     @Override
     @Unique(silent = false)
     public void starcellshading$setAABB(Rectangle rect) {
-        this.boundingBox = rect;
+        this.b = rect;
     }
 }
