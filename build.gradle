@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'de.geolykt'
-version '0.2.1'
+version '0.2.2'
 
 // The following statement defines that Java 8 should be used (which is galimulator's runtime version),
 // however if you dare, you can bump the version - just beware that users may lack the knowledge in how to install and run

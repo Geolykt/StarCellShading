@@ -40,6 +40,8 @@ import de.geolykt.scs.shaders.StarRegionExplodeFragmentShader;
 import de.geolykt.scs.shaders.StarRegionExplodeVertexShader;
 import de.geolykt.starloader.api.CoordinateGrid;
 import de.geolykt.starloader.api.Galimulator;
+import de.geolykt.starloader.api.empire.Alliance;
+import de.geolykt.starloader.api.empire.Faction;
 import de.geolykt.starloader.api.empire.Star;
 import de.geolykt.starloader.api.gui.Drawing;
 import de.geolykt.starloader.api.gui.MapMode;
@@ -125,7 +127,8 @@ public class SCSCoreLogic {
         IntMap<List<Star>> empires = new IntMap<>();
         int maxlen = 0;
         for (Star star : stars) {
-            int empireUID = star.getAssignedEmpireUID();
+            assert star != null;
+            int empireUID = SCSCoreLogic.getStarColor(star).toIntBits();
             List<Star> empire = empires.get(empireUID);
             if (empire == null) {
                 empire = new ArrayList<>();
@@ -166,6 +169,10 @@ public class SCSCoreLogic {
 
         try {
             for (List<Star> empire : empires.values()) {
+                Color empireColor = SCSCoreLogic.getStarColor(empire.get(0));
+                if (empireColor == Color.CLEAR) {
+                    continue; // Skip rendering (e.g. for the neutral territories without a faction, alliance, etc.)
+                }
 
                 secondaryFB.begin();
                 Gdx.gl20.glClearColor(0.0F, 0.0F, 0.0F, 0.0F);
@@ -217,7 +224,7 @@ public class SCSCoreLogic {
 
                 secondaryFB.end();
                 tertiaryFB.begin();
-                secondaryBlitBatch.setColor(empire.get(0).getEmpire().getGDXColor());
+                secondaryBlitBatch.setPackedColor(empireColor.toFloatBits());
                 secondaryBlitBatch.begin();
                 secondaryBlitBatch.draw(secondaryFB.getColorBufferTexture(), 0, 0, 1, 1);
                 secondaryBlitBatch.end();
@@ -259,18 +266,33 @@ public class SCSCoreLogic {
         }
     }
 
-    public static float getStarColorFloat(@NotNull Star star) {
+    @SuppressWarnings("null")
+    @NotNull
+    public static Color getStarColor(@NotNull Star star) {
         MapMode mapMode = Galimulator.getActiveMapmode();
         if (mapMode instanceof SLMapMode) {
             Function<@NotNull Star, Color> fun = ((SLMapMode) mapMode).getStarOverlayRegionColorFunction();
             if (fun != null) {
-                return fun.apply(star).toFloatBits();
+                return fun.apply(star);
             }
-        } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_DEFAULT_MAPMODE)) {
-            return star.getEmpire().getGDXColor().toFloatBits();
+        } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_DEFAULT_MAPMODE)
+                || mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_HEAT_MAPMODE)) {
+            return star.getEmpire().getGDXColor();
+        } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_ALLIANCES_MAPMODE)) {
+            Alliance a = star.getEmpire().getAlliance();
+            if (a == null) {
+                return Color.CLEAR;
+            }
+            return a.getGDXColor();
+        } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_CULTURE_MAPMODE)) {
+            snoddasmannen.galimulator.Culture culture = ((snoddasmannen.galimulator.Star) star).M();
+            if (culture == null) {
+                return Color.CLEAR;
+            }
+            return culture.getColor().getGDXColor();
         }
 
-        return Color.WHITE_FLOAT_BITS;
+        return Color.CLEAR;
     }
 
     @NotNull
