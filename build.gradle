@@ -40,7 +40,7 @@ deployMods {
 
 dependencies {
     // The versions of SLAPI are listed here: https://stianloader.org/maven/de/geolykt/starloader-api/
-    dependencyMods("de.geolykt:starloader-api:2.0.0")
+    dependencyMods("de.geolykt:starloader-api:2.0.0-a20240705")
     // The versions of launcher-micromixin are listed here: https://stianloader.org/maven/org/stianloader/launcher-micromixin/
     devRuntime "org.stianloader:launcher-micromixin:4.0.0-a20240512"
     compileOnly "org.stianloader:micromixin-annotations:0.5.0-a20240518"
