@@ -23,3 +23,5 @@ bin
 # Other things
 *.jar
 classes
+
+!gradle/wrapper/gradle-wrapper.jar
