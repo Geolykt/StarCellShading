@@ -3,19 +3,16 @@ package de.geolykt.scs;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Function;
 
 import org.danilopianini.util.FlexibleQuadTree;
 import org.jetbrains.annotations.NotNull;
-import org.jglrxavpok.jlsl.BytecodeDecoder;
-import org.jglrxavpok.jlsl.JLSLContext;
-import org.jglrxavpok.jlsl.glsl.GLSLEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -34,18 +31,14 @@ import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.IntMap;
 
 import de.geolykt.scs.rendercache.DeferredGlobalRenderObject;
-import de.geolykt.scs.shaders.StarRegionBlitFragmentShader;
-import de.geolykt.scs.shaders.StarRegionBlitVertexShader;
-import de.geolykt.scs.shaders.StarRegionExplodeFragmentShader;
-import de.geolykt.scs.shaders.StarRegionExplodeVertexShader;
 import de.geolykt.starloader.api.CoordinateGrid;
 import de.geolykt.starloader.api.Galimulator;
 import de.geolykt.starloader.api.empire.Alliance;
-import de.geolykt.starloader.api.empire.Faction;
 import de.geolykt.starloader.api.empire.Star;
 import de.geolykt.starloader.api.gui.Drawing;
 import de.geolykt.starloader.api.gui.MapMode;
 import de.geolykt.starloader.api.registry.RegistryKeys;
+import de.geolykt.starloader.api.resource.DataFolderProvider;
 import de.geolykt.starloader.impl.registry.SLMapMode;
 
 public class SCSCoreLogic {
@@ -55,7 +48,6 @@ public class SCSCoreLogic {
 
     private static ShaderProgram explodeShader;
     private static final float GRANULARITY_FACTOR = 0.035F;
-    private static final int BOX_SIZE = 6;
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
     private static final float REGION_SIZE = GRANULARITY_FACTOR * 16;
@@ -168,6 +160,17 @@ public class SCSCoreLogic {
         primaryBlitBatch.setColor(1F, 1F, 1F, SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue());
 
         try {
+            float explodeFactor = SCSConfig.EXPLODE_FACTOR.getValue();
+            float explodeDecay = SCSConfig.EXPLODE_DECAY.getValue();
+            float explodeFloor = SCSConfig.EXPLODE_FLOOR.getValue();
+
+            float boxSize;
+            if (explodeFactor == 0F) {
+                boxSize = 0F;
+            } else {
+                boxSize = (float) (Math.sqrt(2) / explodeDecay);
+            }
+
             for (List<Star> empire : empires.values()) {
                 Color empireColor = SCSCoreLogic.getStarColor(empire.get(0));
                 if (empireColor == Color.CLEAR) {
@@ -184,9 +187,9 @@ public class SCSCoreLogic {
                 explodeShader.bind();
                 Matrix4 projectedTransformationMatrix = batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix());
                 explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
-                explodeShader.setUniformf("u_explodeFactor", SCSConfig.EXPLODE_FACTOR.getValue());
-                explodeShader.setUniformf("u_explodeDecay", SCSConfig.EXPLODE_DECAY.getValue());
-                explodeShader.setUniformf("u_explodeFloor", SCSConfig.EXPLODE_FLOOR.getValue());
+                explodeShader.setUniformf("u_explodeFactor", explodeFactor);
+                explodeShader.setUniformf("u_explodeDecay", explodeDecay);
+                explodeShader.setUniformf("u_explodeFloor", explodeFloor);
 
                 int i;
                 int empireSize = i = empire.size();
@@ -196,23 +199,23 @@ public class SCSCoreLogic {
                     float x = s.getX();
                     float y = s.getY();
 
-                    vertices[baseAddress] = x - SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
-                    vertices[baseAddress + 1] = y - SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
+                    vertices[baseAddress] = x - boxSize;
+                    vertices[baseAddress + 1] = y - boxSize;
                     vertices[baseAddress + 2] = x;
                     vertices[baseAddress + 3] = y;
 
-                    vertices[baseAddress + 4] = x + SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
-                    vertices[baseAddress + 5] = y - SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
+                    vertices[baseAddress + 4] = x + boxSize;
+                    vertices[baseAddress + 5] = y - boxSize;
                     vertices[baseAddress + 6] = x;
                     vertices[baseAddress + 7] = y;
 
-                    vertices[baseAddress + 8] = x - SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
-                    vertices[baseAddress + 9] = y + SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
+                    vertices[baseAddress + 8] = x - boxSize;
+                    vertices[baseAddress + 9] = y + boxSize;
                     vertices[baseAddress + 10] = x;
                     vertices[baseAddress + 11] = y;
 
-                    vertices[baseAddress + 12] = x + SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
-                    vertices[baseAddress + 13] = y + SCSCoreLogic.BOX_SIZE * SCSCoreLogic.GRANULARITY_FACTOR;
+                    vertices[baseAddress + 12] = x + boxSize;
+                    vertices[baseAddress + 13] = y + boxSize;
                     vertices[baseAddress + 14] = x;
                     vertices[baseAddress + 15] = y;
 
@@ -303,24 +306,8 @@ public class SCSCoreLogic {
             return shader;
         }
 
-        String vert = SCSCoreLogic.readStringFromResources("star-cell-blit-shader.vert");
-        String frag = SCSCoreLogic.readStringFromResources("star-cell-blit-shader.frag");
-
-        if (vert.isEmpty()) {
-            StringWriter writer = new StringWriter();
-            JLSLContext context = new JLSLContext(new BytecodeDecoder(), new GLSLEncoder(330));
-            context.execute(StarRegionBlitVertexShader.class, new PrintWriter(writer));
-            vert = writer.toString();
-            SCSCoreLogic.LOGGER.info("Using following blit vertex shader:\n{}", vert);
-        }
-
-        if (frag.isEmpty()) {
-            StringWriter writer = new StringWriter();
-            JLSLContext context = new JLSLContext(new BytecodeDecoder(), new GLSLEncoder(330));
-            context.execute(StarRegionBlitFragmentShader.class, new PrintWriter(writer));
-            frag = writer.toString();
-            SCSCoreLogic.LOGGER.info("Using following blit fragment shader:\n{}", frag);
-        }
+        String vert = SCSCoreLogic.readStringFromResources("bloom-blit.vert");
+        String frag = SCSCoreLogic.readStringFromResources("bloom-blit.frag");
 
         SCSCoreLogic.blitShader = shader = new ShaderProgram(vert, frag);
 
@@ -346,24 +333,8 @@ public class SCSCoreLogic {
             return shader;
         }
 
-        String vert = SCSCoreLogic.readStringFromResources("star-cell-explode-shader.vert");
-        String frag = SCSCoreLogic.readStringFromResources("star-cell-explode-shader.frag");
-
-        if (vert.isEmpty()) {
-            StringWriter writer = new StringWriter();
-            JLSLContext context = new JLSLContext(new BytecodeDecoder(), new GLSLEncoder(330));
-            context.execute(StarRegionExplodeVertexShader.class, new PrintWriter(writer));
-            vert = writer.toString();
-            SCSCoreLogic.LOGGER.info("Using following explode vertex shader:\n{}", vert);
-        }
-
-        if (frag.isEmpty()) {
-            StringWriter writer = new StringWriter();
-            JLSLContext context = new JLSLContext(new BytecodeDecoder(), new GLSLEncoder(330));
-            context.execute(StarRegionExplodeFragmentShader.class, new PrintWriter(writer));
-            frag = writer.toString();
-            SCSCoreLogic.LOGGER.info("Using following explode fragment shader:\n{}", frag);
-        }
+        String vert = SCSCoreLogic.readStringFromResources("bloom-explode.vert");
+        String frag = SCSCoreLogic.readStringFromResources("bloom-explode.frag");
 
         SCSCoreLogic.explodeShader = shader = new ShaderProgram(vert, frag);
 
@@ -372,7 +343,7 @@ public class SCSCoreLogic {
             try {
                 shader.dispose();
             } catch (Exception e) {
-                LOGGER.warn("Unable to dispose explode shader after failing to compile it", e);
+                SCSCoreLogic.LOGGER.warn("Unable to dispose explode shader after failing to compile it", e);
             } finally {
                 Galimulator.panic("Unable to compile shaders (incompatible drivers?).\n\t  ShaderProgram managed status: " + ShaderProgram.getManagedStatus() + "\n\t  Shader logs:\n" + shader.getLog(), false, new RuntimeException("Failed to compile shaders").fillInStackTrace());
             }
@@ -383,19 +354,26 @@ public class SCSCoreLogic {
 
     @NotNull
     private static String readStringFromResources(@NotNull String filepath) {
-        try (InputStream is = SCSCoreLogic.class.getClassLoader().getResourceAsStream(filepath)) {
-            if (is == null) {
-                return "";
-            }
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            byte[] buffer = new byte[4096];
-            for (int read = is.read(buffer); read != -1; read = is.read(buffer)) {
-                baos.write(buffer, 0, read);
-            }
-
-            return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+        try {
+            Path resourceLocation = DataFolderProvider.getProvider().provideAsPath().resolve("mods/star-cell-shading").resolve(filepath);
+            return new String(Files.readAllBytes(resourceLocation), StandardCharsets.UTF_8);
         } catch (IOException e) {
-            throw new UncheckedIOException("Unable to read string from jar", e);
+            LoggerFactory.getLogger(SCSConfig.class).info("Using internally bundled resource '{}', it was not found in the data directory", filepath);
+            try (InputStream is = SCSCoreLogic.class.getClassLoader().getResourceAsStream(filepath)) {
+                if (is == null) {
+                    throw new IOException("Resource '" + filepath + "' is not located within the mod's classpath.");
+                }
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                byte[] buffer = new byte[4096];
+                for (int read = is.read(buffer); read != -1; read = is.read(buffer)) {
+                    baos.write(buffer, 0, read);
+                }
+
+                return new String(baos.toByteArray(), StandardCharsets.UTF_8);
+            } catch (IOException e2) {
+                e2.addSuppressed(e);
+                throw new UncheckedIOException("Unable to read string from jar", e2);
+            }
         }
     }
 }

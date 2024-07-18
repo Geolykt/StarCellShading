@@ -1,15 +1,11 @@
 {
   "entrypoint" : "de.geolykt.scs.SCSExtension",
   "name" : "StarCellShading",
-  "version" : "0.2.2",
+  "version" : "0.2.3",
   "mixinConfig" : "star-cell-shading.mixin.json",
   "dependencies" : [ "StarloaderAPI" ],
   "externalDependencies" : {
     "repositories" : [ {
-      "name" : "stianloader",
-      "url" : "https://stianloader.org/maven/",
-      "mirrorable": false
-    }, {
       "name" : "Central",
       "url" : "https://repo1.maven.org/maven2/",
       "mirrorOnly": true
@@ -18,6 +14,6 @@
       "url" : "https://stianloader.org/central-mirror/",
       "mirrorable": false
     } ],
-    "artifacts" : [ "org.stianloader:jlsl:1.0.0-a20240522", "org.danilopianini:java-quadtree:0.2.0" ]
+    "artifacts" : [ "org.danilopianini:java-quadtree:0.2.0" ]
   }
 }
