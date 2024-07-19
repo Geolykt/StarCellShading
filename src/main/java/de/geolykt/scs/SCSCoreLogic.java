@@ -48,7 +48,7 @@ public class SCSCoreLogic {
     private static final VertexAttribute ATTRIBUTE_CENTER_POSITION = new VertexAttribute(Usage.Generic, 2, GL20.GL_FLOAT, false, "a_centerpos");
     private static final VertexAttribute ATTRIBUTE_VERTEX_POSITION = new VertexAttribute(Usage.Position, 2, GL20.GL_FLOAT, false, ShaderProgram.POSITION_ATTRIBUTE);
     private static ShaderProgram blitShader;
-
+    private static ShaderProgram edgeShader;
     private static ShaderProgram explodeShader;
     private static final float GRANULARITY_FACTOR = 0.035F;
     @Nullable
@@ -66,6 +66,15 @@ public class SCSCoreLogic {
             return;
         }
         SCSCoreLogic.blitShader = null;
+        shader.dispose();
+    }
+
+    public static void disposeEdgeShader() {
+        ShaderProgram shader = SCSCoreLogic.edgeShader;
+        if (shader == null) {
+            return;
+        }
+        SCSCoreLogic.edgeShader = null;
         shader.dispose();
     }
 
@@ -94,8 +103,14 @@ public class SCSCoreLogic {
                 if (SCSCoreLogic.explodeShader != null) {
                     SCSCoreLogic.disposeExplodeShader();
                 }
+                if (SCSCoreLogic.edgeShader != null) {
+                    SCSCoreLogic.disposeEdgeShader();
+                }
                 SCSCoreLogic.initializeBlitShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
                 SCSCoreLogic.initializeExplodeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+                if (currentStyle == CellStyle.FLAT) {
+                    SCSCoreLogic.initializeEdgeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+                }
                 SCSCoreLogic.lastStyle = currentStyle;
             }
 
@@ -306,6 +321,12 @@ public class SCSCoreLogic {
             blitShader = SCSCoreLogic.initializeBlitShader("flat");
         }
 
+        ShaderProgram edgeShader = SCSCoreLogic.edgeShader;
+        if (edgeShader == null) {
+            SCSCoreLogic.LOGGER.warn("Edge shader program wasn't yet initialized. Doing it now");
+            edgeShader = SCSCoreLogic.initializeBlitShader("flat");
+        }
+
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
         Vector3 minCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
@@ -359,13 +380,11 @@ public class SCSCoreLogic {
         FrameBuffer secondaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
         FrameBuffer tertiaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), true);
         SpriteBatch secondaryBlitBatch = new SpriteBatch(1, blitShader);
-        SpriteBatch primaryBlitBatch = new SpriteBatch(1);
+        SpriteBatch primaryBlitBatch = new SpriteBatch(1, edgeShader);
         secondaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
         secondaryBlitBatch.setBlendFunction(GL20.GL_ONE, GL20.GL_ONE_MINUS_SRC_ALPHA);
-//        secondaryBlitBatch.disableBlending();
         primaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
         primaryBlitBatch.setColor(1F, 1F, 1F, SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue());
-//        primaryBlitBatch.disableBlending();
 
         try {
             float explodeFactor = SCSConfig.EXPLODE_FACTOR.getValue();
@@ -455,6 +474,8 @@ public class SCSCoreLogic {
                 tertiaryFB.end();
             }
 
+            edgeShader.bind();
+            edgeShader.setUniform2fv("u_pixelSize", new float[] {1F / Gdx.graphics.getBackBufferWidth(), 1F / Gdx.graphics.getBackBufferHeight()}, 0, 2);
             primaryBlitBatch.begin();
             primaryBlitBatch.draw(tertiaryFB.getColorBufferTexture(), 0, 0, 1, 1);
             primaryBlitBatch.end();
@@ -540,6 +561,37 @@ public class SCSCoreLogic {
                 shader.dispose();
             } catch (Exception e) {
                 SCSCoreLogic.LOGGER.warn("Unable to dispose blit shader after failing to compile it", e);
+            } finally {
+                Galimulator.panic("Unable to compile shaders (incompatible drivers?).\n\t  ShaderProgram managed status: " + ShaderProgram.getManagedStatus() + "\n\t  Shader logs:\n" + shader.getLog(), false, new RuntimeException("Failed to compile shaders").fillInStackTrace());
+            }
+        }
+
+        return shader;
+    }
+
+    @NotNull
+    public static ShaderProgram initializeEdgeShader(@NotNull String category) {
+        if (!CellStyle.FLAT.toString().equalsIgnoreCase(category)) {
+            throw new UnsupportedOperationException();
+        }
+
+        ShaderProgram shader = SCSCoreLogic.edgeShader;
+        if (shader != null) {
+            SCSCoreLogic.LOGGER.warn("Edge shader already initialized");
+            return shader;
+        }
+
+        String vert = SCSCoreLogic.readStringFromResources(category + "-edge.vert");
+        String frag = SCSCoreLogic.readStringFromResources(category + "-edge.frag");
+
+        SCSCoreLogic.edgeShader = shader = new ShaderProgram(vert, frag);
+
+        if (!shader.isCompiled()) {
+            SCSCoreLogic.edgeShader = null;
+            try {
+                shader.dispose();
+            } catch (Exception e) {
+                SCSCoreLogic.LOGGER.warn("Unable to dispose edge shader after failing to compile it", e);
             } finally {
                 Galimulator.panic("Unable to compile shaders (incompatible drivers?).\n\t  ShaderProgram managed status: " + ShaderProgram.getManagedStatus() + "\n\t  Shader logs:\n" + shader.getLog(), false, new RuntimeException("Failed to compile shaders").fillInStackTrace());
             }
