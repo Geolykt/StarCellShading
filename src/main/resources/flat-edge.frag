@@ -19,8 +19,5 @@ void main()
     color += texture(u_texture, v_texCoords + vec2(0, -u_pixelSize.y));
     color += texture(u_texture, v_texCoords - u_pixelSize.xy);
 
-    vec4 blended = texture(u_texture, v_texCoords) * (1.0 - length(color));
-    blended.w = 1.0;
-
-    gl_FragColor = blended * v_color;
+    gl_FragColor = texture(u_texture, v_texCoords) * (1.0 - length(color)) * v_color;
 }

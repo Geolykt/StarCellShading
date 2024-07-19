@@ -475,7 +475,7 @@ public class SCSCoreLogic {
             }
 
             edgeShader.bind();
-            edgeShader.setUniform2fv("u_pixelSize", new float[] {1F / Gdx.graphics.getBackBufferWidth(), 1F / Gdx.graphics.getBackBufferHeight()}, 0, 2);
+            edgeShader.setUniform2fv("u_pixelSize", new float[] {SCSConfig.EMPIRE_BORDER_SIZE.getValue() / Gdx.graphics.getBackBufferWidth(), SCSConfig.EMPIRE_BORDER_SIZE.getValue() / Gdx.graphics.getBackBufferHeight()}, 0, 2);
             primaryBlitBatch.begin();
             primaryBlitBatch.draw(tertiaryFB.getColorBufferTexture(), 0, 0, 1, 1);
             primaryBlitBatch.end();

@@ -50,6 +50,7 @@ public class SCSExtension extends Extension {
                 SCSConfig.EXPLODE_FACTOR.setValue(json.optFloat(SCSConfig.EXPLODE_FACTOR.getName(), SCSConfig.EXPLODE_FACTOR.getDefault()));
                 SCSConfig.EXPLODE_DECAY.setValue(json.optFloat(SCSConfig.EXPLODE_DECAY.getName(), SCSConfig.EXPLODE_DECAY.getDefault()));
                 SCSConfig.EXPLODE_FLOOR.setValue(json.optFloat(SCSConfig.EXPLODE_FLOOR.getName(), SCSConfig.EXPLODE_FLOOR.getDefault()));
+                SCSConfig.EMPIRE_BORDER_SIZE.setValue(json.optFloat(SCSConfig.EMPIRE_BORDER_SIZE.getName(), SCSConfig.EMPIRE_BORDER_SIZE.getDefault()));
                 } catch (JSONException | IOException e1) {
                 this.getLogger().warn("Unable to read configuration; Ignoring it.", e1);
             }
@@ -72,6 +73,7 @@ public class SCSExtension extends Extension {
             json.put(SCSConfig.EXPLODE_FACTOR.getName(), SCSConfig.EXPLODE_FACTOR.getValue());
             json.put(SCSConfig.EXPLODE_DECAY.getName(), SCSConfig.EXPLODE_DECAY.getValue());
             json.put(SCSConfig.EXPLODE_FLOOR.getName(), SCSConfig.EXPLODE_FLOOR.getValue());
+            json.put(SCSConfig.EMPIRE_BORDER_SIZE.getName(), SCSConfig.EMPIRE_BORDER_SIZE.getValue());
             Files.write(file, json.toString(2).getBytes(StandardCharsets.UTF_8));
         } catch (IOException e) {
             this.getLogger().warn("Unable to save configuration", e);

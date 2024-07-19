@@ -13,9 +13,14 @@ import de.geolykt.starloader.api.gui.modconf.StringOption;
 public class SCSConfig {
 
     public static enum CellStyle {
-        VANILLA,
         BLOOM,
-        FLAT;
+        FLAT,
+        VANILLA;
+
+        @NotNull
+        public static CellStyle getCurrentStyle() {
+            return CellStyle.valueOf(SCSConfig.SHADING_CELL_STYLE.get());
+        }
 
         @SuppressWarnings("null")
         @NotNull
@@ -27,14 +32,10 @@ public class SCSConfig {
             }
             return options;
         }
-
-        @NotNull
-        public static CellStyle getCurrentStyle() {
-            return CellStyle.valueOf(SCSConfig.SHADING_CELL_STYLE.get());
-        }
     }
 
     private static final ConfigurationSection CONFIG_SECTION = ModConf.createSection("Star Cell Shading");
+    public static final FloatOption EMPIRE_BORDER_SIZE = SCSConfig.CONFIG_SECTION.addFloatOption("Empire border size", 1.0F, 1.0F, 0F, Float.MAX_VALUE, Arrays.asList(1.0F, 2.0F));
     public static final FloatOption EXPLODE_DECAY = SCSConfig.CONFIG_SECTION.addFloatOption("u_explodeDecay", 4F, 4F, 0F, Float.POSITIVE_INFINITY, Arrays.asList(4F));
     public static final FloatOption EXPLODE_FACTOR = SCSConfig.CONFIG_SECTION.addFloatOption("u_explodeFactor", 1.3F, 1.3F, 0F, Float.POSITIVE_INFINITY, Arrays.asList(1.3F));
     public static final FloatOption EXPLODE_FLOOR = SCSConfig.CONFIG_SECTION.addFloatOption("u_explodeFloor", 0.0F, 0.0F, 0F, 1F, Arrays.asList(0.0F));
