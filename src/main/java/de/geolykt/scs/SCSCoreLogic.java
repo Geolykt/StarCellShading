@@ -44,6 +44,8 @@ import de.geolykt.starloader.api.registry.RegistryKeys;
 import de.geolykt.starloader.api.resource.DataFolderProvider;
 import de.geolykt.starloader.impl.registry.SLMapMode;
 
+import snoddasmannen.galimulator.GalFX;
+
 public class SCSCoreLogic {
     private static final VertexAttribute ATTRIBUTE_CENTER_POSITION = new VertexAttribute(Usage.Generic, 2, GL20.GL_FLOAT, false, "a_centerpos");
     private static final VertexAttribute ATTRIBUTE_VERTEX_POSITION = new VertexAttribute(Usage.Position, 2, GL20.GL_FLOAT, false, ShaderProgram.POSITION_ATTRIBUTE);
@@ -208,6 +210,8 @@ public class SCSCoreLogic {
                 boxSize = (float) (Math.sqrt(2) / explodeDecay);
             }
 
+            Matrix4 projectedTransformationMatrix = GalFX.get_m().combined.cpy().mul(batch.getTransformMatrix());
+
             for (List<@NotNull Star> empire : empires.values()) {
                 Color empireColor = SCSCoreLogic.getStarColor(empire.get(0));
                 if (empireColor == Color.CLEAR) {
@@ -222,7 +226,6 @@ public class SCSCoreLogic {
                 Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA_SATURATE, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
                 explodeShader.bind();
-                Matrix4 projectedTransformationMatrix = batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix());
                 explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
                 explodeShader.setUniformf("u_explodeFactor", explodeFactor);
                 explodeShader.setUniformf("u_explodeDecay", explodeDecay);
@@ -405,6 +408,8 @@ public class SCSCoreLogic {
                 boxSize = (float) (Math.sqrt(2) / explodeDecay);
             }
 
+            Matrix4 projectedTransformationMatrix = GalFX.get_m().combined.cpy().mul(batch.getTransformMatrix());
+
             for (List<@NotNull Star> empire : empires.values()) {
                 Color empireColor = SCSCoreLogic.getStarColor(empire.get(0));
                 if (empireColor == Color.CLEAR) {
@@ -420,7 +425,6 @@ public class SCSCoreLogic {
                 Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA_SATURATE, GL20.GL_ONE_MINUS_SRC_ALPHA);
 
                 explodeShader.bind();
-                Matrix4 projectedTransformationMatrix = batch.getProjectionMatrix().cpy().mul(batch.getTransformMatrix());
                 explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
                 explodeShader.setUniformf("u_explodeFactor", explodeFactor);
                 explodeShader.setUniformf("u_explodeDecay", explodeDecay);
