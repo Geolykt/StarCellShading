@@ -29,8 +29,8 @@ public class SCSExtension extends Extension {
         EventManager.registerListener(new Listener() {
             @EventHandler
             public void afterStart(ApplicationStartedEvent e) {
-                SCSCoreLogic.initializeExplodeShader();
-                SCSCoreLogic.initializeBlitShader();
+//                SCSCoreLogic.initializeExplodeShader();
+//                SCSCoreLogic.initializeBlitShader();
             }
 
             @EventHandler
@@ -45,7 +45,7 @@ public class SCSExtension extends Extension {
         if (Files.exists(config)) {
             try {
                 JSONObject json = new JSONObject(new String(Files.readAllBytes(config), StandardCharsets.UTF_8));
-                SCSConfig.USE_VANILLA_CELL_SHADING.set(json.optBoolean(SCSConfig.USE_VANILLA_CELL_SHADING.getName(), SCSConfig.USE_VANILLA_CELL_SHADING.getDefault()));
+                SCSConfig.SHADING_CELL_STYLE.set(json.optString(SCSConfig.SHADING_CELL_STYLE.getName(), SCSConfig.SHADING_CELL_STYLE.getDefault()));
                 SCSConfig.MASTER_ALPHA_MULTIPLIER.setValue(json.optFloat(SCSConfig.MASTER_ALPHA_MULTIPLIER.getName(), SCSConfig.MASTER_ALPHA_MULTIPLIER.getDefault()));
                 SCSConfig.EXPLODE_FACTOR.setValue(json.optFloat(SCSConfig.EXPLODE_FACTOR.getName(), SCSConfig.EXPLODE_FACTOR.getDefault()));
                 SCSConfig.EXPLODE_DECAY.setValue(json.optFloat(SCSConfig.EXPLODE_DECAY.getName(), SCSConfig.EXPLODE_DECAY.getDefault()));
@@ -55,7 +55,7 @@ public class SCSExtension extends Extension {
             }
         } else {
             // Load class and run <clinit> block
-            SCSConfig.USE_VANILLA_CELL_SHADING.get();
+            SCSConfig.SHADING_CELL_STYLE.get();
         }
     }
 
@@ -67,7 +67,7 @@ public class SCSExtension extends Extension {
                 Files.createDirectories(parent);
             }
             JSONObject json = new JSONObject();
-            json.put(SCSConfig.USE_VANILLA_CELL_SHADING.getName(), SCSConfig.USE_VANILLA_CELL_SHADING.get().booleanValue());
+            json.put(SCSConfig.SHADING_CELL_STYLE.getName(), SCSConfig.SHADING_CELL_STYLE.get());
             json.put(SCSConfig.MASTER_ALPHA_MULTIPLIER.getName(), SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue());
             json.put(SCSConfig.EXPLODE_FACTOR.getName(), SCSConfig.EXPLODE_FACTOR.getValue());
             json.put(SCSConfig.EXPLODE_DECAY.getName(), SCSConfig.EXPLODE_DECAY.getValue());

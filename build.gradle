@@ -6,7 +6,7 @@ plugins {
 }
 
 group 'de.geolykt'
-version '0.2.3'
+version '0.3.0'
 
 // The following statement defines that Java 8 should be used (which is galimulator's runtime version),
 // however if you dare, you can bump the version - just beware that users may lack the knowledge in how to install and run
@@ -41,7 +41,7 @@ deployMods {
 
 dependencies {
     // The versions of SLAPI are listed here: https://stianloader.org/maven/de/geolykt/starloader-api/
-    dependencyMods("de.geolykt:starloader-api:2.0.0-a20240717:remapped")
+    dependencyMods("de.geolykt:starloader-api:2.0.0-a20240719:remapped")
     // The versions of launcher-micromixin are listed here: https://stianloader.org/maven/org/stianloader/launcher-micromixin/
     devRuntime "org.stianloader:launcher-micromixin:4.0.0-a20240713"
     compileOnly "org.stianloader:micromixin-annotations:0.6.1-a20240713"

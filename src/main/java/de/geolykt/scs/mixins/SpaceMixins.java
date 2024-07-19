@@ -6,7 +6,7 @@ import org.spongepowered.asm.mixin.injection.Desc;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.Slice;
 
-import de.geolykt.scs.SCSConfig;
+import de.geolykt.scs.SCSConfig.CellStyle;
 import de.geolykt.scs.SCSCoreLogic;
 import de.geolykt.starloader.api.Galimulator;
 import de.geolykt.starloader.api.registry.RegistryKeys;
@@ -31,7 +31,7 @@ public class SpaceMixins {
             throw new IllegalArgumentException("settings != D_S_R");
         }
 
-        if (SCSConfig.USE_VANILLA_CELL_SHADING.get()
+        if (CellStyle.getCurrentStyle() == CellStyle.VANILLA
                 || settings.getValue() == Boolean.FALSE
                 // Force the use of the vanilla cell shading logic if our logic cannot be applied on MapModes without impacting
                 // the quality of the represented contents
@@ -39,7 +39,7 @@ public class SpaceMixins {
                 || Galimulator.getActiveMapmode().getRegistryKey().equals(RegistryKeys.GALIMULATOR_RELIGION_MAPMODE)
                 // With the wealth MapMode the bloom of stars versus the bloom of wealth cannot be easily distinguished,
                 // prompting this distinction
-                || Galimulator.getActiveMapmode().getRegistryKey().equals(RegistryKeys.GALIMULATOR_WEALTH_MAPMODE)) {
+                || (Galimulator.getActiveMapmode().getRegistryKey().equals(RegistryKeys.GALIMULATOR_WEALTH_MAPMODE) && CellStyle.getCurrentStyle() == CellStyle.BLOOM)) {
             return settings.getValue();
         }
 

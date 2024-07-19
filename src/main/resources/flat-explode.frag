@@ -10,7 +10,6 @@ in vec2 v_origincoords;
 void main()
 {
     vec2 diff = v_origincoords-f_centerpos;
-    vec4 color = vec4(1.0, 1.0, 1.0, (1.0 - sqrt(diff.x*diff.x+diff.y*diff.y) * u_explodeDecay) * u_explodeFactor);
-    color.w = min(max(smoothstep(u_explodeFloor, 1.0, color.w) - u_explodeFloor, 0.0), 1.0);
-    gl_FragColor = color;
+    float linearDepth = (1.0 - sqrt(diff.x*diff.x+diff.y*diff.y) * u_explodeDecay) * u_explodeFactor;
+    gl_FragColor = vec4(1.0, 1.0, 1.0, min(max(smoothstep(u_explodeFloor, 1.0, linearDepth) - u_explodeFloor, 0.0), 1.0));
 }
