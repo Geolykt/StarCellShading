@@ -527,7 +527,8 @@ public class SCSCoreLogic {
                 return fun.apply(star);
             }
         } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_DEFAULT_MAPMODE)
-                || mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_HEAT_MAPMODE)) {
+                || mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_HEAT_MAPMODE)
+                || mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_WEALTH_MAPMODE)) {
             return star.getEmpire().getGDXColor();
         } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_ALLIANCES_MAPMODE)) {
             Alliance a = star.getEmpire().getAlliance();
