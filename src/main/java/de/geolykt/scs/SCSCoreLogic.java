@@ -285,7 +285,6 @@ public class SCSCoreLogic {
                 }
             }
 
-            mesh.dispose();
             Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
             Gdx.gl20.glDisable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
             batch.getShader().bind();
@@ -297,6 +296,7 @@ public class SCSCoreLogic {
                 }
             }
         } finally {
+            mesh.dispose();
             secondaryFB.dispose();
             tertiaryFB.dispose();
             primaryBlitBatch.dispose();
@@ -385,7 +385,7 @@ public class SCSCoreLogic {
         SpriteBatch secondaryBlitBatch = new SpriteBatch(1, blitShader);
         SpriteBatch primaryBlitBatch = new SpriteBatch(1, edgeShader);
         secondaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
-        secondaryBlitBatch.setBlendFunction(GL20.GL_ONE, GL20.GL_ONE_MINUS_SRC_ALPHA);
+        secondaryBlitBatch.disableBlending();
         primaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
         primaryBlitBatch.setColor(1F, 1F, 1F, SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue());
 
@@ -422,7 +422,7 @@ public class SCSCoreLogic {
 
                 Gdx.gl20.glEnable(GL20.GL_BLEND);
                 Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
-                Gdx.gl20.glBlendFunc(GL20.GL_SRC_ALPHA_SATURATE, GL20.GL_ONE_MINUS_SRC_ALPHA);
+                Gdx.gl20.glBlendFunc(GL20.GL_ONE, GL20.GL_ONE);
 
                 explodeShader.bind();
                 explodeShader.setUniformMatrix("u_projTrans", projectedTransformationMatrix);
@@ -468,7 +468,7 @@ public class SCSCoreLogic {
                 tertiaryFB.begin();
                 Gdx.gl20.glEnable(GL20.GL_DEPTH_TEST);
                 Gdx.gl20.glDepthFunc(GL20.GL_LESS);
-                Gdx.gl20.glDepthRangef(0.1F, 1.0F);
+                Gdx.gl20.glDepthRangef(0.001F, 1.0F);
                 secondaryBlitBatch.setPackedColor(empireColor.toFloatBits());
                 secondaryBlitBatch.begin();
                 Gdx.gl20.glDepthMask(true); // WARNING: This method MUST be called after #begin.
@@ -491,7 +491,6 @@ public class SCSCoreLogic {
                 }
             }
 
-            mesh.dispose();
             Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
             Gdx.gl20.glDisable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
             batch.getShader().bind();
@@ -503,6 +502,7 @@ public class SCSCoreLogic {
                 }
             }
         } finally {
+            mesh.dispose();
             secondaryFB.dispose();
             tertiaryFB.dispose();
             primaryBlitBatch.dispose();
