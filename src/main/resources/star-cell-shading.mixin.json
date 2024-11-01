@@ -5,6 +5,10 @@
   "target": "@env(DEFAULT)",
   "compatibilityLevel": "JAVA_8",
   "mixins": [
+    "gdxdiag.DiagnosticFramebufferMixins",
+    "gdxdiag.DiagnosticMeshMixins",
+    "gdxdiag.DiagnosticShaderProgramMixins",
+    "gdxdiag.DiagnosticSpritebatchMixins",
     "RenderItemMixins",
     "SpaceMixins",
     "StarMixins"

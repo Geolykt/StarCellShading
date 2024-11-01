@@ -63,10 +63,28 @@ public class SCSCoreLogic {
     private static final int MAX_INDICES_MASK = 0x0FFF;
     private static final float REGION_SIZE = GRANULARITY_FACTOR * 16;
 
+    @Nullable
+    private static FrameBuffer fboAux0;
+    @Nullable
+    private static FrameBuffer fboAux1;
+
+    public static void discardFBOs() {
+        FrameBuffer fbo = SCSCoreLogic.fboAux0;
+        if (fbo != null) {
+            fbo.dispose();
+            SCSCoreLogic.fboAux0 = null;
+        }
+
+        fbo = SCSCoreLogic.fboAux1;
+        if (fbo != null) {
+            fbo.dispose();
+            SCSCoreLogic.fboAux1 = null;
+        }
+    }
+
     public static void disposeBlitShader() {
         ShaderProgram shader = SCSCoreLogic.blitShader;
         if (shader == null) {
-            SCSCoreLogic.LOGGER.warn("Blit shader not yet initialized, yet it should be disposed.");
             return;
         }
         SCSCoreLogic.blitShader = null;
@@ -85,7 +103,6 @@ public class SCSCoreLogic {
     public static void disposeExplodeShader() {
         ShaderProgram shader = SCSCoreLogic.explodeShader;
         if (shader == null) {
-            SCSCoreLogic.LOGGER.warn("Explode shader not yet initialized, yet it should be disposed.");
             return;
         }
         SCSCoreLogic.explodeShader = null;
@@ -101,15 +118,10 @@ public class SCSCoreLogic {
         CellStyle currentStyle = CellStyle.getCurrentStyle();
         Drawing.getRendercacheUtils().getDrawingState().pushObject(new DeferredGlobalRenderObject(() -> {
             if (currentStyle != SCSCoreLogic.lastStyle) {
-                if (SCSCoreLogic.blitShader != null) {
-                    SCSCoreLogic.disposeBlitShader();
-                }
-                if (SCSCoreLogic.explodeShader != null) {
-                    SCSCoreLogic.disposeExplodeShader();
-                }
-                if (SCSCoreLogic.edgeShader != null) {
-                    SCSCoreLogic.disposeEdgeShader();
-                }
+                SCSCoreLogic.discardFBOs();
+                SCSCoreLogic.disposeBlitShader();
+                SCSCoreLogic.disposeExplodeShader();
+                SCSCoreLogic.disposeEdgeShader();
                 SCSCoreLogic.initializeBlitShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
                 SCSCoreLogic.initializeExplodeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
                 if (currentStyle == CellStyle.FLAT) {
@@ -154,6 +166,7 @@ public class SCSCoreLogic {
         boolean drawing;
         if (drawing = batch.isDrawing()) {
             drawing = false;
+            batch.getShader().bind();
             batch.flush();
         }
 
@@ -191,14 +204,41 @@ public class SCSCoreLogic {
         org.lwjgl.opengl.GL31.glPrimitiveRestartIndex(0xFFFF);
         Gdx.gl20.glEnable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
 
-        FrameBuffer secondaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
-        FrameBuffer tertiaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
+        FrameBuffer secondaryFB = SCSCoreLogic.fboAux0;
+        FrameBuffer tertiaryFB = SCSCoreLogic.fboAux1;
+
+        if (secondaryFB != null
+                && (secondaryFB.getWidth() != Gdx.graphics.getBackBufferWidth() || secondaryFB.getHeight() != Gdx.graphics.getBackBufferHeight())) {
+            secondaryFB.dispose();
+            secondaryFB = null;
+        }
+
+        if (tertiaryFB != null
+                && (tertiaryFB.getWidth() != Gdx.graphics.getBackBufferWidth() || tertiaryFB.getHeight() != Gdx.graphics.getBackBufferHeight())) {
+            tertiaryFB.dispose();
+            tertiaryFB = null;
+        }
+
+        if (secondaryFB == null) {
+            secondaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
+            SCSCoreLogic.fboAux0 = secondaryFB;
+        }
+
+        if (tertiaryFB == null) {
+            tertiaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), false);
+            SCSCoreLogic.fboAux1 = tertiaryFB;
+        }
+
         SpriteBatch secondaryBlitBatch = new SpriteBatch(1, blitShader);
         SpriteBatch primaryBlitBatch = new SpriteBatch(1);
         secondaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
         secondaryBlitBatch.setBlendFunction(GL20.GL_SRC_ALPHA_SATURATE, GL20.GL_ONE_MINUS_SRC_ALPHA);
         primaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
         primaryBlitBatch.setColor(1F, 1F, 1F, SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue());
+
+        tertiaryFB.bind();
+        Gdx.gl20.glClearColor(0F, 0F, 0F, 0F);
+        Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         try {
             float explodeFactor = SCSConfig.EXPLODE_FACTOR.getValue();
@@ -299,8 +339,6 @@ public class SCSCoreLogic {
             }
         } finally {
             mesh.dispose();
-            secondaryFB.dispose();
-            tertiaryFB.dispose();
             primaryBlitBatch.dispose();
             secondaryBlitBatch.dispose();
         }
@@ -345,6 +383,7 @@ public class SCSCoreLogic {
         boolean drawing;
         if (drawing = batch.isDrawing()) {
             drawing = false;
+            batch.getShader().bind();
             batch.flush();
         }
 
@@ -382,20 +421,43 @@ public class SCSCoreLogic {
         org.lwjgl.opengl.GL31.glPrimitiveRestartIndex(0xFFFF);
         Gdx.gl20.glEnable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
 
-        FrameBuffer secondaryFB;
-        {
+        FrameBuffer secondaryFB = SCSCoreLogic.fboAux0;
+        FrameBuffer tertiaryFB = SCSCoreLogic.fboAux1;
+
+        if (secondaryFB != null
+                && (secondaryFB.getWidth() != Gdx.graphics.getBackBufferWidth() || secondaryFB.getHeight() != Gdx.graphics.getBackBufferHeight())) {
+            secondaryFB.dispose();
+            secondaryFB = null;
+        }
+
+        if (tertiaryFB != null
+                && (tertiaryFB.getWidth() != Gdx.graphics.getBackBufferWidth() || tertiaryFB.getHeight() != Gdx.graphics.getBackBufferHeight())) {
+            tertiaryFB.dispose();
+            tertiaryFB = null;
+        }
+
+        if (secondaryFB == null) {
             GLFrameBuffer.FrameBufferBuilder builder = new GLFrameBuffer.FrameBufferBuilder(Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight());
             builder.addColorTextureAttachment(GL30.GL_RED, GL30.GL_RED, GL20.GL_FLOAT);
             secondaryFB = builder.build();
+            SCSCoreLogic.fboAux0 = secondaryFB;
         }
 
-        FrameBuffer tertiaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), true);
+        if (tertiaryFB == null) {
+            tertiaryFB = new FrameBuffer(Pixmap.Format.RGBA8888, Gdx.graphics.getBackBufferWidth(), Gdx.graphics.getBackBufferHeight(), true);
+            SCSCoreLogic.fboAux1 = tertiaryFB;
+        }
+
         SpriteBatch secondaryBlitBatch = new SpriteBatch(1, blitShader);
         SpriteBatch primaryBlitBatch = new SpriteBatch(1, edgeShader);
         secondaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
         secondaryBlitBatch.disableBlending();
         primaryBlitBatch.setProjectionMatrix(new Matrix4().translate(-1F, 1F, 0).scale(2, -2, 0));
         primaryBlitBatch.setColor(1F, 1F, 1F, SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue());
+
+        secondaryFB.bind();
+        Gdx.gl20.glClearColor(0F, 0F, 0F, 0F);
+        Gdx.gl20.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         try {
             float explodeFactor = SCSConfig.EXPLODE_FACTOR.getValue();
@@ -406,7 +468,7 @@ public class SCSCoreLogic {
             Gdx.gl20.glDepthMask(true);
             Gdx.gl20.glClearDepthf(1F);
             tertiaryFB.bind();
-            Gdx.gl20.glClear(GL20.GL_DEPTH_BUFFER_BIT);
+            Gdx.gl20.glClear(GL20.GL_DEPTH_BUFFER_BIT | GL20.GL_COLOR_BUFFER_BIT);
             Gdx.gl20.glDisable(GL20.GL_DEPTH_TEST);
 
             float boxSize;
@@ -511,8 +573,6 @@ public class SCSCoreLogic {
             }
         } finally {
             mesh.dispose();
-            secondaryFB.dispose();
-            tertiaryFB.dispose();
             primaryBlitBatch.dispose();
             secondaryBlitBatch.dispose();
             Gdx.gl20.glDepthRangef(0.0F, 1.0F);

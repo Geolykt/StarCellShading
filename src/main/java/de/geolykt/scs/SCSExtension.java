@@ -38,6 +38,8 @@ public class SCSExtension extends Extension {
                 SCSExtension.this.saveConfig();
                 SCSCoreLogic.disposeExplodeShader();
                 SCSCoreLogic.disposeBlitShader();
+                SCSCoreLogic.disposeEdgeShader();
+                SCSCoreLogic.discardFBOs();
             }
         });
 
