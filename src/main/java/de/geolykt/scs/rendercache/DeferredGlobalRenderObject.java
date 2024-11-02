@@ -1,7 +1,8 @@
 package de.geolykt.scs.rendercache;
 
+import java.util.Objects;
+
 import org.jetbrains.annotations.NotNull;
-import org.stianloader.micromixin.transform.internal.util.Objects;
 
 import com.badlogic.gdx.math.Rectangle;
 

@@ -1,9 +1,10 @@
 package de.geolykt.scs.mixins;
 
+import java.util.Objects;
+
 import org.jetbrains.annotations.NotNull;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
-import org.stianloader.micromixin.transform.internal.util.Objects;
 
 import de.geolykt.scs.StarAccess;
 
