@@ -47,7 +47,7 @@ public class SCSExtension extends Extension {
         if (Files.exists(config)) {
             try {
                 JSONObject json = new JSONObject(new String(Files.readAllBytes(config), StandardCharsets.UTF_8));
-                SCSConfig.SHADING_CELL_STYLE.set(json.optString(SCSConfig.SHADING_CELL_STYLE.getName(), SCSConfig.SHADING_CELL_STYLE.getDefault()));
+                SCSConfig.SHADING_CELL_STYLE.set(json.optString(SCSConfig.SHADING_CELL_STYLE.getName(), SCSConfig.SHADING_CELL_STYLE.getDefault()) + "");
                 SCSConfig.MASTER_ALPHA_MULTIPLIER.setValue(json.optFloat(SCSConfig.MASTER_ALPHA_MULTIPLIER.getName(), SCSConfig.MASTER_ALPHA_MULTIPLIER.getDefault()));
                 SCSConfig.EXPLODE_FACTOR.setValue(json.optFloat(SCSConfig.EXPLODE_FACTOR.getName(), SCSConfig.EXPLODE_FACTOR.getDefault()));
                 SCSConfig.EXPLODE_DECAY.setValue(json.optFloat(SCSConfig.EXPLODE_DECAY.getName(), SCSConfig.EXPLODE_DECAY.getDefault()));

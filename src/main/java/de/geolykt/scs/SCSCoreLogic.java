@@ -31,15 +31,16 @@ import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.GLFrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.IntMap;
 
 import de.geolykt.scs.SCSConfig.CellStyle;
-import de.geolykt.scs.rendercache.DeferredGlobalRenderObject;
 import de.geolykt.starloader.api.CoordinateGrid;
 import de.geolykt.starloader.api.Galimulator;
 import de.geolykt.starloader.api.empire.Alliance;
 import de.geolykt.starloader.api.empire.Star;
+import de.geolykt.starloader.api.gui.AsyncRenderer;
 import de.geolykt.starloader.api.gui.Drawing;
 import de.geolykt.starloader.api.gui.MapMode;
 import de.geolykt.starloader.api.registry.RegistryKeys;
@@ -61,7 +62,7 @@ public class SCSCoreLogic {
     private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
     private static final int MAX_INDICES = 0x1000;
     private static final int MAX_INDICES_MASK = 0x0FFF;
-    private static final float REGION_SIZE = GRANULARITY_FACTOR * 16;
+    private static final float REGION_SIZE = SCSCoreLogic.GRANULARITY_FACTOR * 16;
 
     @Nullable
     private static FrameBuffer fboAux0;
@@ -116,7 +117,11 @@ public class SCSCoreLogic {
         }
 
         CellStyle currentStyle = CellStyle.getCurrentStyle();
-        Drawing.getRendercacheUtils().getDrawingState().pushObject(new DeferredGlobalRenderObject(() -> {
+
+        float w = Galimulator.getMap().getWidth();
+        float h = Galimulator.getMap().getWidth();
+
+        AsyncRenderer.postRunnableRenderObject(() -> {
             if (currentStyle != SCSCoreLogic.lastStyle) {
                 SCSCoreLogic.discardFBOs();
                 SCSCoreLogic.disposeBlitShader();
@@ -135,7 +140,7 @@ public class SCSCoreLogic {
             } else if (currentStyle == CellStyle.FLAT) {
                 SCSCoreLogic.drawRegionsDirectFlat(quadTree);
             }
-        }));
+        }, new Rectangle(w / -2, h / -2, w, h), Drawing.getBoardCamera());
     }
 
     public static void drawRegionsDirectBloom(FlexibleQuadTree<Star> quadTree) {

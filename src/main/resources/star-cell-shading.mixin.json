@@ -9,8 +9,6 @@
     "gdxdiag.DiagnosticMeshMixins",
     "gdxdiag.DiagnosticShaderProgramMixins",
     "gdxdiag.DiagnosticSpritebatchMixins",
-    "RenderItemMixins",
-    "SpaceMixins",
-    "StarMixins"
+    "SpaceMixins"
   ]
 }
