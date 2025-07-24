@@ -8,13 +8,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 
 import org.danilopianini.util.FlexibleQuadTree;
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -663,12 +668,43 @@ public class SCSCoreLogic {
             if (starToEmpireUID[edge.site1] != starToEmpireUID[edge.site2]) {
                 frontierStar[edge.site1] = true;
                 frontierStar[edge.site2] = true;
-                frontierVertices.add(FloatHashing.positionalRawHash((float) edge.x1, (float) edge.y1));
-                frontierVertices.add(FloatHashing.positionalRawHash((float) edge.x2, (float) edge.y2));
+                frontierVertices.add(Hashing.positionalHashRawFloat((float) edge.x1, (float) edge.y1));
+                frontierVertices.add(Hashing.positionalHashRawFloat((float) edge.x2, (float) edge.y2));
             }
             edgeCount[edge.site1]++;
             edgeCount[edge.site2]++;
         }
+
+        final class LongPair {
+            private final long l1, l2;
+
+            /**
+             * Constructor. Argument order is irrelevant.
+             *
+             * @param l1 The first long
+             * @param l2 The other long
+             */
+            @Contract(pure = true)
+            public LongPair(final long l1, final long l2) {
+                this.l1 = l1;
+                this.l2 = l2;
+            }
+
+            @Override
+            @Contract(pure = true)
+            public final boolean equals(Object obj) {
+                return (((LongPair) obj).l1 == this.l1 && ((LongPair) obj).l2 == this.l2)
+                        || (((LongPair) obj).l2 == this.l1 && ((LongPair) obj).l1 == this.l2);
+            }
+
+            @Override
+            @Contract(pure = true)
+            public final int hashCode() {
+                return Long.hashCode(this.l1 ^ this.l2);
+            }
+        }
+
+        Map<LongPair, GraphEdge> frontierNeighbourPairs = new HashMap<>();
 
         float[][] polyPoints = new float[stars.size()][];
         for (int i = stars.size() - 1; i >= 0; i--) {
@@ -677,6 +713,14 @@ public class SCSCoreLogic {
         }
 
         for (GraphEdge edge : edges) {
+            if (frontierStar[edge.site1]
+                    && frontierStar[edge.site2]
+                    && starToEmpireUID[edge.site1] == starToEmpireUID[edge.site2]) {
+                long vertexA = Hashing.positionalHashRawFloat((float) edge.x1, (float) edge.y1);
+                long vertexB = Hashing.positionalHashRawFloat((float) edge.x2, (float) edge.y2);
+                frontierNeighbourPairs.put(new LongPair(vertexA, vertexB), edge);
+            }
+
             int site1Idx = edgeCount[edge.site1]++;
             int site2Idx = edgeCount[edge.site2]++;
             float[] site1Positions = polyPoints[edge.site1];
@@ -739,25 +783,67 @@ public class SCSCoreLogic {
                 poly = voronoiPolygon.getVertices();
             }
 
-            Color fillColor = getStarColor(stars.get(i));
+            Color fillColor = SCSCoreLogic.getStarColor(stars.get(i));
             int intColor = ((int)(255 * fillColor.a * SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue()) << 24) | ((int)(255 * fillColor.b) << 16) | ((int)(255 * fillColor.g) << 8) | ((int)(255 * fillColor.r));
             float floatColor = NumberUtils.intToFloatColor(intColor);
+            Color edgeColor = new Color(0.5F, 0.5F, 0.5F, 0.2F);
 
             if (frontierStar[i]) {
-                for (int j = poly.length; j > 0; j -= 2) {
-                    float vertexAx = poly[(poly.length - j + 0) % poly.length];
-                    float vertexAy = poly[(poly.length - j + 1) % poly.length];
-                    float vertexBx = poly[(poly.length - j + 2) % poly.length];
-                    float vertexBy = poly[(poly.length - j + 3) % poly.length];
+                boolean[] shrink = new boolean[poly.length / 2];
+                int[] shrinkInfluence = new int[poly.length / 2];
+                Arrays.fill(shrinkInfluence, -1);
 
-                    if (frontierVertices.contains(FloatHashing.positionalRawHash(vertexAx, vertexAy))) {
-                        vertexAx = (centerX + vertexAx * 4) / 5;
-                        vertexAy = (centerY + vertexAy * 4) / 5;
+                for (int j = poly.length; j > 0; j -= 2) {
+                    int vertexAIndex = (poly.length - j + 0) % poly.length;
+                    float vertexAx = poly[vertexAIndex];
+                    float vertexAy = poly[vertexAIndex + 1];
+                    int vertexBIndex = (vertexAIndex + 2) % poly.length;
+                    float vertexBx = poly[vertexBIndex];
+                    float vertexBy = poly[vertexBIndex + 1];
+
+                    long vertexAHash = Hashing.positionalHashRawFloat(vertexAx, vertexAy);
+                    long vertexBHash = Hashing.positionalHashRawFloat(vertexBx, vertexBy);
+                    boolean vertexAFrontier = shrink[vertexAIndex / 2] = frontierVertices.contains(vertexAHash);
+                    boolean vertexBFrontier = shrink[vertexBIndex / 2] = frontierVertices.contains(vertexBHash);
+
+                    if (vertexAFrontier || vertexBFrontier) {
+                        GraphEdge edge = frontierNeighbourPairs.get(new LongPair(vertexAHash, vertexBHash));
+                        if (edge != null) {
+                            int otherStarId = edge.site1 == i ? edge.site2 : edge.site1;
+                            shrinkInfluence[vertexAIndex / 2] = otherStarId;
+                            shrinkInfluence[vertexBIndex / 2] = otherStarId;
+                        }
+                    }
+                }
+
+                for (int j = poly.length; j > 0; j -= 2) {
+                    int vertexAIndex = (poly.length - j + 0) % poly.length;
+                    float vertexAx = poly[vertexAIndex];
+                    float vertexAy = poly[vertexAIndex + 1];
+                    int vertexBIndex = (vertexAIndex + 2) % poly.length;
+                    float vertexBx = poly[vertexBIndex];
+                    float vertexBy = poly[vertexBIndex + 1];
+
+                    if (shrink[vertexAIndex / 2]) {
+                        int otherInfluence = shrinkInfluence[vertexAIndex / 2];
+                        if (otherInfluence < 0) {
+                            vertexAx = (centerX + vertexAx * 3) / 4;
+                            vertexAy = (centerY + vertexAy * 3) / 4;
+                        } else {
+                            vertexAx = (centerX + (float) starPositionsX[otherInfluence] + vertexAx * 6) / 8;
+                            vertexAy = (centerY + (float) starPositionsY[otherInfluence] + vertexAy * 6) / 8;
+                        }
                     }
 
-                    if (frontierVertices.contains(FloatHashing.positionalRawHash(vertexBx, vertexBy))) {
-                        vertexBx = (centerX + vertexBx * 4) / 5;
-                        vertexBy = (centerY + vertexBy * 4) / 5;
+                    if (shrink[vertexBIndex / 2]) {
+                        int otherInfluence = shrinkInfluence[vertexBIndex / 2];
+                        if (otherInfluence < 0) {
+                            vertexBx = (centerX + vertexBx * 3) / 4;
+                            vertexBy = (centerY + vertexBy * 3) / 4;
+                        } else {
+                            vertexBx = (centerX + (float) starPositionsX[otherInfluence] + vertexBx * 6) / 8;
+                            vertexBy = (centerY + (float) starPositionsY[otherInfluence] + vertexBy * 6) / 8;
+                        }
                     }
 
                     batch.draw(fillRegion.getTexture(), new float[] {
@@ -782,18 +868,23 @@ public class SCSCoreLogic {
                         fillRegion.getU2(),
                         fillRegion.getV2()
                     }, 0, 20);
+                    if (stars.get(i).getAssignedEmpireUID() != Galimulator.getUniverse().getNeutralEmpire().getUID()) {
+                        Drawing.drawLine(vertexAx, vertexAy, vertexBx, vertexBy, SCSCoreLogic.GRANULARITY_FACTOR * 0.5F, edgeColor, Drawing.getBoardCamera());
+                    }
                 }
             } else {
                 ShortArray indices = triangulator.computeTriangles(poly, 0, poly.length);
                 for (int j = indices.size - 3; j >= 0; j -= 3) {
+                    float vertexAx = poly[indices.items[j] * 2];
+                    float vertexAy = poly[indices.items[j] * 2 + 1];
                     batch.draw(fillRegion.getTexture(), new float[] {
-                            poly[indices.items[j] * 2],
-                            poly[indices.items[j] * 2 + 1],
+                            vertexAx,
+                            vertexAy,
                             floatColor,
                             fillRegion.getU(),
                             fillRegion.getV(),
-                            poly[indices.items[j] * 2],
-                            poly[indices.items[j] * 2 + 1],
+                            vertexAx,
+                            vertexAy,
                             floatColor,
                             fillRegion.getU(),
                             fillRegion.getV(),
@@ -808,6 +899,15 @@ public class SCSCoreLogic {
                             fillRegion.getU2(),
                             fillRegion.getV2()
                     }, 0, 20);
+                }
+                if (stars.get(i).getAssignedEmpireUID() != Galimulator.getUniverse().getNeutralEmpire().getUID()) {
+                    for (int j = poly.length; j > 0; j -= 2) {
+                        float vertexAx = poly[(poly.length - j + 0) % poly.length];
+                        float vertexAy = poly[(poly.length - j + 1) % poly.length];
+                        float vertexBx = poly[(poly.length - j + 2) % poly.length];
+                        float vertexBy = poly[(poly.length - j + 3) % poly.length];
+                        Drawing.drawLine(vertexAx, vertexAy, vertexBx, vertexBy, SCSCoreLogic.GRANULARITY_FACTOR * 0.5F, edgeColor, Drawing.getBoardCamera());
+                    }
                 }
             }
         }
