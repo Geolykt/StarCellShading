@@ -8,9 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.function.Function;
 
 import org.danilopianini.util.FlexibleQuadTree;
@@ -34,7 +35,6 @@ import com.badlogic.gdx.graphics.glutils.GLFrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
 import com.badlogic.gdx.math.ConvexHull;
 import com.badlogic.gdx.math.EarClippingTriangulator;
-import com.badlogic.gdx.math.GeometryUtils;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Polygon;
@@ -59,7 +59,6 @@ import de.geolykt.starloader.impl.registry.SLMapMode;
 
 import snoddasmannen.galimulator.GalFX;
 import snoddasmannen.galimulator.Settings.EnumSettings;
-import snoddasmannen.galimulator.Space;
 
 import be.humphreys.simplevoronoi.GraphEdge;
 import be.humphreys.simplevoronoi.Voronoi;
@@ -658,11 +657,14 @@ public class SCSCoreLogic {
 
         int[] edgeCount = new int[stars.size()];
         boolean[] frontierStar = new boolean[stars.size()];
+        Set<Long> frontierVertices = new HashSet<>();
 
         for (GraphEdge edge : edges) {
             if (starToEmpireUID[edge.site1] != starToEmpireUID[edge.site2]) {
                 frontierStar[edge.site1] = true;
                 frontierStar[edge.site2] = true;
+                frontierVertices.add(FloatHashing.positionalRawHash((float) edge.x1, (float) edge.y1));
+                frontierVertices.add(FloatHashing.positionalRawHash((float) edge.x2, (float) edge.y2));
             }
             edgeCount[edge.site1]++;
             edgeCount[edge.site2]++;
@@ -688,7 +690,7 @@ public class SCSCoreLogic {
         ConvexHull hullGenerator = new ConvexHull();
         EarClippingTriangulator triangulator = new EarClippingTriangulator();
         TextureRegion fillRegion = Drawing.getTextureProvider().getSinglePixelSquare();
-        GalFX.a(Drawing.getBoardCamera());
+        GalFX.a(Drawing.getBoardCamera()); // TODO Implement this method in SLAPI
 
         int noOverlapCount = 0;
 
@@ -737,39 +739,81 @@ public class SCSCoreLogic {
                 poly = voronoiPolygon.getVertices();
             }
 
-            ShortArray indices = triangulator.computeTriangles(poly, 0, poly.length);
-
             Color fillColor = getStarColor(stars.get(i));
             int intColor = ((int)(255 * fillColor.a * SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue()) << 24) | ((int)(255 * fillColor.b) << 16) | ((int)(255 * fillColor.g) << 8) | ((int)(255 * fillColor.r));
             float floatColor = NumberUtils.intToFloatColor(intColor);
-            for (int j = indices.size - 3; j >= 0; j -= 3) {
-                batch.draw(fillRegion.getTexture(), new float[] {
-                        poly[indices.items[j] * 2],
-                        poly[indices.items[j] * 2 + 1],
+
+            if (frontierStar[i]) {
+                for (int j = poly.length; j > 0; j -= 2) {
+                    float vertexAx = poly[(poly.length - j + 0) % poly.length];
+                    float vertexAy = poly[(poly.length - j + 1) % poly.length];
+                    float vertexBx = poly[(poly.length - j + 2) % poly.length];
+                    float vertexBy = poly[(poly.length - j + 3) % poly.length];
+
+                    if (frontierVertices.contains(FloatHashing.positionalRawHash(vertexAx, vertexAy))) {
+                        vertexAx = (centerX + vertexAx * 4) / 5;
+                        vertexAy = (centerY + vertexAy * 4) / 5;
+                    }
+
+                    if (frontierVertices.contains(FloatHashing.positionalRawHash(vertexBx, vertexBy))) {
+                        vertexBx = (centerX + vertexBx * 4) / 5;
+                        vertexBy = (centerY + vertexBy * 4) / 5;
+                    }
+
+                    batch.draw(fillRegion.getTexture(), new float[] {
+                        centerX,
+                        centerY,
                         floatColor,
                         fillRegion.getU(),
                         fillRegion.getV(),
-                        poly[indices.items[j] * 2],
-                        poly[indices.items[j] * 2 + 1],
+                        centerX,
+                        centerY,
                         floatColor,
                         fillRegion.getU(),
                         fillRegion.getV(),
-                        poly[indices.items[j + 1] * 2],
-                        poly[indices.items[j + 1] * 2 + 1],
+                        vertexAx,
+                        vertexAy,
                         floatColor,
                         fillRegion.getU2(),
                         fillRegion.getV2(),
-                        poly[indices.items[j + 2] * 2],
-                        poly[indices.items[j + 2] * 2 + 1],
+                        vertexBx,
+                        vertexBy,
                         floatColor,
                         fillRegion.getU2(),
                         fillRegion.getV2()
-                }, 0, 20);
+                    }, 0, 20);
+                }
+            } else {
+                ShortArray indices = triangulator.computeTriangles(poly, 0, poly.length);
+                for (int j = indices.size - 3; j >= 0; j -= 3) {
+                    batch.draw(fillRegion.getTexture(), new float[] {
+                            poly[indices.items[j] * 2],
+                            poly[indices.items[j] * 2 + 1],
+                            floatColor,
+                            fillRegion.getU(),
+                            fillRegion.getV(),
+                            poly[indices.items[j] * 2],
+                            poly[indices.items[j] * 2 + 1],
+                            floatColor,
+                            fillRegion.getU(),
+                            fillRegion.getV(),
+                            poly[indices.items[j + 1] * 2],
+                            poly[indices.items[j + 1] * 2 + 1],
+                            floatColor,
+                            fillRegion.getU2(),
+                            fillRegion.getV2(),
+                            poly[indices.items[j + 2] * 2],
+                            poly[indices.items[j + 2] * 2 + 1],
+                            floatColor,
+                            fillRegion.getU2(),
+                            fillRegion.getV2()
+                    }, 0, 20);
+                }
             }
         }
 
         if (noOverlapCount != 0) {
-            LoggerFactory.getLogger(SCSCoreLogic.class).warn("Vorbez: {} regions do not have an overlap (incorrect voronoi regions?).", noOverlapCount);
+            LoggerFactory.getLogger(SCSCoreLogic.class).debug("Vorbez: {} regions do not have an overlap (incorrect voronoi regions?).", noOverlapCount);
         }
 
     }
