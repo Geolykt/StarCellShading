@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
@@ -27,13 +28,22 @@ import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.VertexAttribute;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
 import com.badlogic.gdx.graphics.glutils.GLFrameBuffer;
 import com.badlogic.gdx.graphics.glutils.ShaderProgram;
+import com.badlogic.gdx.math.ConvexHull;
+import com.badlogic.gdx.math.EarClippingTriangulator;
+import com.badlogic.gdx.math.GeometryUtils;
+import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Matrix4;
+import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.utils.FloatArray;
 import com.badlogic.gdx.utils.IntMap;
+import com.badlogic.gdx.utils.NumberUtils;
+import com.badlogic.gdx.utils.ShortArray;
 
 import de.geolykt.scs.SCSConfig.CellStyle;
 import de.geolykt.starloader.api.CoordinateGrid;
@@ -48,6 +58,11 @@ import de.geolykt.starloader.api.resource.DataFolderProvider;
 import de.geolykt.starloader.impl.registry.SLMapMode;
 
 import snoddasmannen.galimulator.GalFX;
+import snoddasmannen.galimulator.Settings.EnumSettings;
+import snoddasmannen.galimulator.Space;
+
+import be.humphreys.simplevoronoi.GraphEdge;
+import be.humphreys.simplevoronoi.Voronoi;
 
 public class SCSCoreLogic {
     private static final VertexAttribute ATTRIBUTE_CENTER_POSITION = new VertexAttribute(Usage.Generic, 2, GL20.GL_FLOAT, false, "a_centerpos");
@@ -111,7 +126,7 @@ public class SCSCoreLogic {
     }
 
     public static void drawRegionsAsync() {
-        FlexibleQuadTree<Star> quadTree = new FlexibleQuadTree<>(64);
+        FlexibleQuadTree<@NotNull Star> quadTree = new FlexibleQuadTree<>(64);
         for (Star s : Galimulator.getUniverse().getStarsView()) {
             quadTree.insert(s, s.getX(), s.getY());
         }
@@ -127,11 +142,15 @@ public class SCSCoreLogic {
                 SCSCoreLogic.disposeBlitShader();
                 SCSCoreLogic.disposeExplodeShader();
                 SCSCoreLogic.disposeEdgeShader();
-                SCSCoreLogic.initializeBlitShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
-                SCSCoreLogic.initializeExplodeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
-                if (currentStyle == CellStyle.FLAT) {
-                    SCSCoreLogic.initializeEdgeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+
+                if (currentStyle.hasShaders()) {
+                    SCSCoreLogic.initializeBlitShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+                    SCSCoreLogic.initializeExplodeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+                    if (currentStyle == CellStyle.FLAT) {
+                        SCSCoreLogic.initializeEdgeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+                    }
                 }
+
                 SCSCoreLogic.lastStyle = currentStyle;
             }
 
@@ -139,11 +158,15 @@ public class SCSCoreLogic {
                 SCSCoreLogic.drawRegionsDirectBloom(quadTree);
             } else if (currentStyle == CellStyle.FLAT) {
                 SCSCoreLogic.drawRegionsDirectFlat(quadTree);
+            } else if (currentStyle == CellStyle.VORONOI_BEZIER) {
+                SCSCoreLogic.drawRegionsVorBez(quadTree);
+            } else {
+                Galimulator.panic("Unimplemented cell shading style: " + currentStyle + "\n[RED]This is a bug in star-cell-shading. Consider reporting it.[]", true);
             }
         }, new Rectangle(w / -2, h / -2, w, h), Drawing.getBoardCamera());
     }
 
-    public static void drawRegionsDirectBloom(FlexibleQuadTree<Star> quadTree) {
+    public static void drawRegionsDirectBloom(@NotNull FlexibleQuadTree<Star> quadTree) {
         SpriteBatch batch = Drawing.getDrawingBatch();
 
         ShaderProgram explodeShader = SCSCoreLogic.explodeShader;
@@ -354,7 +377,7 @@ public class SCSCoreLogic {
         }
     }
 
-    public static void drawRegionsDirectFlat(FlexibleQuadTree<Star> quadTree) {
+    public static void drawRegionsDirectFlat(@NotNull FlexibleQuadTree<Star> quadTree) {
         SpriteBatch batch = Drawing.getDrawingBatch();
 
         ShaderProgram explodeShader = SCSCoreLogic.explodeShader;
@@ -590,6 +613,167 @@ public class SCSCoreLogic {
         }
     }
 
+    public static void drawRegionsVorBez(@NotNull FlexibleQuadTree<@NotNull Star> quadTree) {
+        SpriteBatch batch = Drawing.getDrawingBatch();
+
+        float screenW = Gdx.graphics.getWidth();
+        float screenH = Gdx.graphics.getHeight();
+        Vector3 minCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
+        Vector3 maxCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
+
+        minCoords.sub(SCSCoreLogic.REGION_SIZE * 2);
+        maxCoords.add(SCSCoreLogic.REGION_SIZE * 2);
+
+        List<@NotNull Star> stars = quadTree.query(minCoords.x, minCoords.y, maxCoords.x, maxCoords.y);
+
+        if (stars.size() == 0) {
+            return; // Nothing to do
+        }
+
+        IntMap<List<@NotNull Star>> empires = new IntMap<>();
+        int[] starToEmpireUID = new int[stars.size()];
+        double[] starPositionsX = new double[stars.size()];
+        double[] starPositionsY = new double[stars.size()];
+        int maxlen = 0;
+
+        {
+            int starPositionIndex = 0;
+            for (Star star : stars) {
+                int empireUID = SCSCoreLogic.getStarColor(star).toIntBits();
+                starToEmpireUID[starPositionIndex] = empireUID;
+                starPositionsX[starPositionIndex] = star.getX();
+                starPositionsY[starPositionIndex++] = star.getY();
+                List<Star> empire = empires.get(empireUID);
+                if (empire == null) {
+                    empire = new ArrayList<>();
+                    empires.put(empireUID, empire);
+                }
+                empire.add(star);
+                maxlen = Math.max(maxlen, empire.size());
+            }
+        }
+
+        Voronoi voronoiGen = new Voronoi(1e-7);
+        List<GraphEdge> edges = voronoiGen.generateVoronoi(starPositionsX, starPositionsY, minCoords.x, maxCoords.x, minCoords.y, maxCoords.y);
+
+        int[] edgeCount = new int[stars.size()];
+        boolean[] frontierStar = new boolean[stars.size()];
+
+        for (GraphEdge edge : edges) {
+            if (starToEmpireUID[edge.site1] != starToEmpireUID[edge.site2]) {
+                frontierStar[edge.site1] = true;
+                frontierStar[edge.site2] = true;
+            }
+            edgeCount[edge.site1]++;
+            edgeCount[edge.site2]++;
+        }
+
+        float[][] polyPoints = new float[stars.size()][];
+        for (int i = stars.size() - 1; i >= 0; i--) {
+            polyPoints[i] = new float[edgeCount[i] * 4];
+            edgeCount[i] = 0;
+        }
+
+        for (GraphEdge edge : edges) {
+            int site1Idx = edgeCount[edge.site1]++;
+            int site2Idx = edgeCount[edge.site2]++;
+            float[] site1Positions = polyPoints[edge.site1];
+            float[] site2Positions = polyPoints[edge.site2];
+            site2Positions[site2Idx * 4 + 0] = site1Positions[site1Idx * 4 + 0] = (float) edge.x1;
+            site2Positions[site2Idx * 4 + 1] = site1Positions[site1Idx * 4 + 1] = (float) edge.y1;
+            site2Positions[site2Idx * 4 + 2] = site1Positions[site1Idx * 4 + 2] = (float) edge.x2;
+            site2Positions[site2Idx * 4 + 3] = site1Positions[site1Idx * 4 + 3] = (float) edge.y2;
+        }
+
+        ConvexHull hullGenerator = new ConvexHull();
+        EarClippingTriangulator triangulator = new EarClippingTriangulator();
+        TextureRegion fillRegion = Drawing.getTextureProvider().getSinglePixelSquare();
+        GalFX.a(Drawing.getBoardCamera());
+
+        int noOverlapCount = 0;
+
+        for (int i = stars.size() - 1; i >= 0; i--) {
+            float[] poly = polyPoints[i];
+            if (poly.length < 6) {
+                continue;
+            }
+            FloatArray floatArray = hullGenerator.computePolygon(poly, false);
+            poly = floatArray.toArray();
+            Polygon voronoiPolygon = new Polygon(poly);
+            float centerX = (float) starPositionsX[i], centerY = (float) starPositionsY[i];
+            Polygon octagon = new Polygon(new float[] {
+                centerX + SCSCoreLogic.GRANULARITY_FACTOR * 5F * 0.7F,
+                centerY + SCSCoreLogic.GRANULARITY_FACTOR * 5F * 0.7F,
+                centerX + SCSCoreLogic.GRANULARITY_FACTOR * 5F,
+                centerY,
+                centerX + SCSCoreLogic.GRANULARITY_FACTOR * 5F * 0.7F,
+                centerY - SCSCoreLogic.GRANULARITY_FACTOR * 5F * 0.7F,
+                centerX,
+                centerY - SCSCoreLogic.GRANULARITY_FACTOR * 5F,
+                centerX - SCSCoreLogic.GRANULARITY_FACTOR * 5F * 0.7F,
+                centerY - SCSCoreLogic.GRANULARITY_FACTOR * 5F * 0.7F,
+                centerX - SCSCoreLogic.GRANULARITY_FACTOR * 5F,
+                centerY,
+                centerX - SCSCoreLogic.GRANULARITY_FACTOR * 5F * 0.7F,
+                centerY + SCSCoreLogic.GRANULARITY_FACTOR * 5F * 0.7F,
+                centerX,
+                centerY + SCSCoreLogic.GRANULARITY_FACTOR * 5F,
+            });
+
+            Polygon outputPolygon = new Polygon();
+
+            boolean overlap;
+            try {
+                overlap = Intersector.intersectPolygons(voronoiPolygon, octagon, outputPolygon);
+            } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
+                SCSCoreLogic.LOGGER.debug("Failed to intersect polygons", e);
+                continue;
+            }
+
+            poly = outputPolygon.getVertices();
+
+            if (!overlap) {
+                noOverlapCount++;
+                poly = voronoiPolygon.getVertices();
+            }
+
+            ShortArray indices = triangulator.computeTriangles(poly, 0, poly.length);
+
+            Color fillColor = getStarColor(stars.get(i));
+            int intColor = ((int)(255 * fillColor.a * SCSConfig.MASTER_ALPHA_MULTIPLIER.getValue()) << 24) | ((int)(255 * fillColor.b) << 16) | ((int)(255 * fillColor.g) << 8) | ((int)(255 * fillColor.r));
+            float floatColor = NumberUtils.intToFloatColor(intColor);
+            for (int j = indices.size - 3; j >= 0; j -= 3) {
+                batch.draw(fillRegion.getTexture(), new float[] {
+                        poly[indices.items[j] * 2],
+                        poly[indices.items[j] * 2 + 1],
+                        floatColor,
+                        fillRegion.getU(),
+                        fillRegion.getV(),
+                        poly[indices.items[j] * 2],
+                        poly[indices.items[j] * 2 + 1],
+                        floatColor,
+                        fillRegion.getU(),
+                        fillRegion.getV(),
+                        poly[indices.items[j + 1] * 2],
+                        poly[indices.items[j + 1] * 2 + 1],
+                        floatColor,
+                        fillRegion.getU2(),
+                        fillRegion.getV2(),
+                        poly[indices.items[j + 2] * 2],
+                        poly[indices.items[j + 2] * 2 + 1],
+                        floatColor,
+                        fillRegion.getU2(),
+                        fillRegion.getV2()
+                }, 0, 20);
+            }
+        }
+
+        if (noOverlapCount != 0) {
+            LoggerFactory.getLogger(SCSCoreLogic.class).warn("Vorbez: {} regions do not have an overlap (incorrect voronoi regions?).", noOverlapCount);
+        }
+
+    }
+
     @SuppressWarnings("null")
     @NotNull
     public static Color getStarColor(@NotNull Star star) {
@@ -602,6 +786,13 @@ public class SCSCoreLogic {
         } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_DEFAULT_MAPMODE)
                 || mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_HEAT_MAPMODE)
                 || mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_WEALTH_MAPMODE)) {
+            if (star.getEmpire() == Galimulator.getUniverse().getNeutralEmpire()) {
+                if (EnumSettings.DRAW_NEUTRAL_STARS.getValue() == Boolean.FALSE) {
+                    return Color.CLEAR;
+                }
+                Color c = star.getEmpire().getGDXColor();
+                return new Color(c.r,c.g, c.b, c.a * 0.3F);
+            }
             return star.getEmpire().getGDXColor();
         } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_ALLIANCES_MAPMODE)) {
             Alliance a = star.getEmpire().getAlliance();
