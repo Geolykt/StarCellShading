@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.function.Function;
 
 import org.danilopianini.util.FlexibleQuadTree;
@@ -45,6 +44,7 @@ import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector3;
+//import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.FloatArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.NumberUtils;
@@ -659,7 +659,8 @@ public class SCSCoreLogic {
 
         Voronoi voronoiGen = new Voronoi(1e-7);
         List<GraphEdge> edges = voronoiGen.generateVoronoi(starPositionsX, starPositionsY, minCoords.x, maxCoords.x, minCoords.y, maxCoords.y);
-
+//        List<GraphEdge> edges = new ArrayList<>();
+        
         int[] edgeCount = new int[stars.size()];
         boolean[] frontierStar = new boolean[stars.size()];
         Set<Long> frontierVertices = new HashSet<>();
@@ -772,7 +773,7 @@ public class SCSCoreLogic {
             try {
                 overlap = Intersector.intersectPolygons(voronoiPolygon, octagon, outputPolygon);
             } catch (IndexOutOfBoundsException | IllegalArgumentException e) {
-                SCSCoreLogic.LOGGER.debug("Failed to intersect polygons", e);
+                SCSCoreLogic.LOGGER.warn("Failed to intersect polygons (concurrency issues?)", e);
                 continue;
             }
 

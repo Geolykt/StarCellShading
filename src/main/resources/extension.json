@@ -4,6 +4,7 @@
   "version" : "0.4.0",
   "mixinConfig" : "star-cell-shading.mixin.json",
   "dependencies" : [ "StarloaderAPI" ],
+  "reversibleAccessSetter": "scs-access.ras",
   "externalDependencies" : {
     "repositories" : [ {
       "name" : "Central",

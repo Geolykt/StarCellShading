@@ -1,0 +1,4 @@
+RAS v1 std
+
+# Runtime fix for crash in voronoi regeneration code (mostly affects galaxies with moving stars). Caused by otherwise difficult to avoid/mitigate concurrency issues.
+ runtime    0               ACC_SYNCHRONIZED com/badlogic/gdx/math/Intersector                        intersectPolygons                       (Lcom/badlogic/gdx/math/Polygon;Lcom/badlogic/gdx/math/Polygon;Lcom/badlogic/gdx/math/Polygon;)Z
