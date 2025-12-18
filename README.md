@@ -1,6 +1,6 @@
 # star-cell-shading
 
-Depends on SLAPI 2.0.0-a20250703 or newer.
+Depends on SLAPI 2.0.0-a20251218.2 or newer.
 
 A mod for galimulator 5.0.2 which replaces the vanilla way of drawing star regions
 with custom shader code to give them a more curvy look. With that it is a departure

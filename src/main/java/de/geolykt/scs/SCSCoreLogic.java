@@ -48,6 +48,7 @@ import de.geolykt.starloader.api.resource.DataFolderProvider;
 import de.geolykt.starloader.impl.registry.SLMapMode;
 
 import snoddasmannen.galimulator.GalFX;
+import snoddasmannen.galimulator.Settings.EnumSettings;
 
 public class SCSCoreLogic {
     private static final VertexAttribute ATTRIBUTE_CENTER_POSITION = new VertexAttribute(Usage.Generic, 2, GL20.GL_FLOAT, false, "a_centerpos");
@@ -602,7 +603,14 @@ public class SCSCoreLogic {
         } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_DEFAULT_MAPMODE)
                 || mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_HEAT_MAPMODE)
                 || mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_WEALTH_MAPMODE)) {
-            return star.getEmpire().getGDXColor();
+            if (star.getEmpire() == Galimulator.getUniverse().getNeutralEmpire()) {
+                if (!Galimulator.getConfiguration().getDrawNeutralStars()) {
+                    return Color.CLEAR;
+                }
+                Color c = star.getEmpire().getGDXColor();
+                return new Color(c.r,c.g, c.b, c.a * 0.3F);
+            }
+            return star.getEmpire().getMapColor();
         } else if (mapMode.getRegistryKey().equals(RegistryKeys.GALIMULATOR_ALLIANCES_MAPMODE)) {
             Alliance a = star.getEmpire().getAlliance();
             if (a == null) {
