@@ -3,7 +3,9 @@ package de.geolykt.scs;
 import java.util.Arrays;
 import java.util.Objects;
 
+import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
+import org.slf4j.LoggerFactory;
 
 import de.geolykt.starloader.api.gui.modconf.ConfigurationSection;
 import de.geolykt.starloader.api.gui.modconf.FloatOption;
@@ -13,13 +15,20 @@ import de.geolykt.starloader.api.gui.modconf.StringOption;
 public class SCSConfig {
 
     public static enum CellStyle {
-        BLOOM,
-        FLAT,
-        VANILLA;
+        BLOOM(true),
+        FLAT(true),
+        VANILLA(false),
+        VORONOI_BEZIER(false);
 
         @NotNull
         public static CellStyle getCurrentStyle() {
-            return CellStyle.valueOf(SCSConfig.SHADING_CELL_STYLE.get());
+            try {
+                return CellStyle.valueOf(SCSConfig.SHADING_CELL_STYLE.get());
+            } catch (IllegalArgumentException e) {
+                LoggerFactory.getLogger(SCSConfig.class).warn("Unable to get the current style", e);
+                SCSConfig.SHADING_CELL_STYLE.set(Objects.requireNonNull(CellStyle.VANILLA.name()));
+                return CellStyle.VANILLA;
+            }
         }
 
         @SuppressWarnings("null")
@@ -31,6 +40,17 @@ public class SCSConfig {
                 options[i] = Objects.toString(styles[i]);
             }
             return options;
+        }
+
+        private final boolean shaders;
+
+        private CellStyle(final boolean shaders) {
+            this.shaders = shaders;
+        }
+
+        @Contract(pure = true)
+        public boolean hasShaders() {
+            return this.shaders;
         }
     }
 

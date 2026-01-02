@@ -25,3 +25,6 @@ bin
 classes
 
 !gradle/wrapper/gradle-wrapper.jar
+
+# JVM crash log files
+hs_err_pid*.log

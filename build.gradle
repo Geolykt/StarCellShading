@@ -1,12 +1,12 @@
 plugins {
     id 'java'
     id 'java-library'
-    id 'gsl-starplane' version '0.2.0-a20240713.1'
+    id 'gsl-starplane' version '0.2.4-a20251220'
     id 'maven-publish'
 }
 
 group 'de.geolykt'
-version '0.4.1' // Remember to adjust this in the extension.json, too!
+version '0.4.2' // Remember to adjust this in the extension.json, too!
 
 // The following statement defines that Java 8 should be used (which is galimulator's runtime version),
 // however if you dare, you can bump the version - just beware that users may lack the knowledge in how to install and run
@@ -41,12 +41,12 @@ deployMods {
 
 dependencies {
     // The versions of SLAPI are listed here: https://stianloader.org/maven/de/geolykt/starloader-api/
-    dependencyMods("de.geolykt:starloader-api:2.0.0-a20251218.2:remapped")
+    dependencyMods("de.geolykt:starloader-api:2.0.0-a20251226:remapped")
     // The versions of launcher-micromixin are listed here: https://stianloader.org/maven/org/stianloader/launcher-micromixin/
-    devRuntime "org.stianloader:launcher-micromixin:4.0.0-a20241021"
+    devRuntime "org.stianloader:launcher-micromixin:4.0.0-a20251115"
     compileOnly "org.stianloader:micromixin-annotations:0.7.1-a20241021"
     compileOnly "de.geolykt.starloader:starplane-annotations:1.0.0"
-    compileOnlyApi "org.jetbrains:annotations:24.1.0"
+    compileOnlyApi "org.jetbrains:annotations:26.0.1-1"
 
     // https://mvnrepository.com/artifact/org.danilopianini/java-quadtree
     // Remember to adjust the version here to the version used in the extension.json, too!

@@ -1,9 +1,10 @@
 {
   "entrypoint" : "de.geolykt.scs.SCSExtension",
   "name" : "StarCellShading",
-  "version" : "0.4.1",
+  "version" : "0.4.2",
   "mixinConfig" : "star-cell-shading.mixin.json",
   "dependencies" : [ "StarloaderAPI" ],
+  "reversibleAccessSetter": "scs-access.ras",
   "externalDependencies" : {
     "repositories" : [ {
       "name" : "Central",
