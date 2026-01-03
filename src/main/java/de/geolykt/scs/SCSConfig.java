@@ -18,7 +18,7 @@ public class SCSConfig {
         BLOOM(true),
         FLAT(true),
         VANILLA(false),
-        VORONOI_BEZIER(false);
+        VORONOI_FISHBONE(false);
 
         @NotNull
         public static CellStyle getCurrentStyle() {

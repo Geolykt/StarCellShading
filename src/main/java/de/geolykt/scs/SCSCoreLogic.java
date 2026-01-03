@@ -79,6 +79,7 @@ public class SCSCoreLogic {
     private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
     private static final int MAX_INDICES = 0x1000;
     private static final int MAX_INDICES_MASK = 0x0FFF;
+    private static final boolean PRINT_SHADER_LOGS = Boolean.getBoolean("de.geolykt.scs.PRINT_SHADER_LOGS");
     private static final float REGION_SIZE = SCSCoreLogic.GRANULARITY_FACTOR * 16;
 
     @Nullable
@@ -160,8 +161,8 @@ public class SCSCoreLogic {
                 SCSCoreLogic.drawRegionsDirectBloom(quadTree);
             } else if (currentStyle == CellStyle.FLAT) {
                 SCSCoreLogic.drawRegionsDirectFlat(quadTree);
-            } else if (currentStyle == CellStyle.VORONOI_BEZIER) {
-                SCSCoreLogic.drawRegionsVorBez(quadTree);
+            } else if (currentStyle == CellStyle.VORONOI_FISHBONE) {
+                SCSCoreLogic.drawRegionsFishbone(quadTree);
             } else {
                 Galimulator.panic("Unimplemented cell shading style: " + currentStyle + "\n[RED]This is a bug in star-cell-shading. Consider reporting it.[]", true);
             }
@@ -350,8 +351,8 @@ public class SCSCoreLogic {
             primaryBlitBatch.draw(tertiaryFB.getColorBufferTexture(), 0, 0, 1, 1);
             primaryBlitBatch.end();
 
-            if (!explodeShader.getLog().isEmpty()) {
-                SCSCoreLogic.LOGGER.info("Shader logs (pre dispose):");
+            if (SCSCoreLogic.PRINT_SHADER_LOGS && !explodeShader.getLog().isEmpty()) {
+                SCSCoreLogic.LOGGER.info("Shader logs for exploder (bloom):");
                 for (String ln : explodeShader.getLog().split("\n")) {
                     SCSCoreLogic.LOGGER.info(ln);
                 }
@@ -360,13 +361,6 @@ public class SCSCoreLogic {
             Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
             Gdx.gl20.glDisable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
             batch.getShader().bind();
-
-            if (!explodeShader.getLog().isEmpty()) {
-                SCSCoreLogic.LOGGER.info("Shader logs (post dispose):");
-                for (String ln : explodeShader.getLog().split("\n")) {
-                    SCSCoreLogic.LOGGER.info(ln);
-                }
-            }
         } finally {
             mesh.dispose();
             primaryBlitBatch.dispose();
@@ -584,8 +578,8 @@ public class SCSCoreLogic {
             primaryBlitBatch.draw(tertiaryFB.getColorBufferTexture(), 0, 0, 1, 1);
             primaryBlitBatch.end();
 
-            if (!explodeShader.getLog().isEmpty()) {
-                SCSCoreLogic.LOGGER.info("Shader logs (pre dispose):");
+            if (SCSCoreLogic.PRINT_SHADER_LOGS && !explodeShader.getLog().isEmpty()) {
+                SCSCoreLogic.LOGGER.info("Shader logs for exploder (flat):");
                 for (String ln : explodeShader.getLog().split("\n")) {
                     SCSCoreLogic.LOGGER.info(ln);
                 }
@@ -594,13 +588,6 @@ public class SCSCoreLogic {
             Gdx.gl20.glBlendEquation(GL20.GL_FUNC_ADD);
             Gdx.gl20.glDisable(org.lwjgl.opengl.GL31.GL_PRIMITIVE_RESTART);
             batch.getShader().bind();
-
-            if (!explodeShader.getLog().isEmpty()) {
-                SCSCoreLogic.LOGGER.info("Shader logs (post dispose):");
-                for (String ln : explodeShader.getLog().split("\n")) {
-                    SCSCoreLogic.LOGGER.info(ln);
-                }
-            }
         } finally {
             mesh.dispose();
             primaryBlitBatch.dispose();
@@ -615,7 +602,7 @@ public class SCSCoreLogic {
         }
     }
 
-    public static void drawRegionsVorBez(@NotNull FlexibleQuadTree<@NotNull Star> quadTree) {
+    public static void drawRegionsFishbone(@NotNull FlexibleQuadTree<@NotNull Star> quadTree) {
         SpriteBatch batch = Drawing.getDrawingBatch();
         batch.getShader().bind(); // Not sure why it wasn't bound before but not is certainly is.
 
@@ -913,9 +900,8 @@ public class SCSCoreLogic {
         }
 
         if (noOverlapCount != 0) {
-            LoggerFactory.getLogger(SCSCoreLogic.class).debug("Vorbez: {} regions do not have an overlap (incorrect voronoi regions?).", noOverlapCount);
+            LoggerFactory.getLogger(SCSCoreLogic.class).debug("Fishbone: {} regions do not have an overlap (incorrect voronoi regions?).", noOverlapCount);
         }
-
     }
 
     @SuppressWarnings("null")
@@ -968,6 +954,13 @@ public class SCSCoreLogic {
 
         SCSCoreLogic.blitShader = shader = new ShaderProgram(vert, frag);
 
+        if (!shader.getLog().isEmpty()) {
+            SCSCoreLogic.LOGGER.info("Shader (blit) logs (post compile for {}):", category);
+            for (String ln : shader.getLog().split("\n")) {
+                SCSCoreLogic.LOGGER.info(ln);
+            }
+        }
+
         if (!shader.isCompiled()) {
             SCSCoreLogic.blitShader = null;
             try {
@@ -999,6 +992,13 @@ public class SCSCoreLogic {
 
         SCSCoreLogic.edgeShader = shader = new ShaderProgram(vert, frag);
 
+        if (!shader.getLog().isEmpty()) {
+            SCSCoreLogic.LOGGER.info("Shader (edge) logs (post compile for {}):", category);
+            for (String ln : shader.getLog().split("\n")) {
+                SCSCoreLogic.LOGGER.info(ln);
+            }
+        }
+
         if (!shader.isCompiled()) {
             SCSCoreLogic.edgeShader = null;
             try {
@@ -1025,6 +1025,13 @@ public class SCSCoreLogic {
         String frag = SCSCoreLogic.readStringFromResources(category + "-explode.frag");
 
         SCSCoreLogic.explodeShader = shader = new ShaderProgram(vert, frag);
+
+        if (!shader.getLog().isEmpty()) {
+            SCSCoreLogic.LOGGER.info("Shader (explode) logs (post compile for {}):", category);
+            for (String ln : shader.getLog().split("\n")) {
+                SCSCoreLogic.LOGGER.info(ln);
+            }
+        }
 
         if (!shader.isCompiled()) {
             SCSCoreLogic.explodeShader = null;
