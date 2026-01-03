@@ -62,7 +62,7 @@ import de.geolykt.starloader.api.resource.DataFolderProvider;
 import de.geolykt.starloader.impl.registry.SLMapMode;
 
 import snoddasmannen.galimulator.GalFX;
-import snoddasmannen.galimulator.Settings.EnumSettings;
+
 import be.humphreys.simplevoronoi.GraphEdge;
 import be.humphreys.simplevoronoi.Voronoi;
 
@@ -617,6 +617,7 @@ public class SCSCoreLogic {
 
     public static void drawRegionsVorBez(@NotNull FlexibleQuadTree<@NotNull Star> quadTree) {
         SpriteBatch batch = Drawing.getDrawingBatch();
+        batch.getShader().bind(); // Not sure why it wasn't bound before but not is certainly is.
 
         float screenW = Gdx.graphics.getWidth();
         float screenH = Gdx.graphics.getHeight();
@@ -733,7 +734,7 @@ public class SCSCoreLogic {
         ConvexHull hullGenerator = new ConvexHull();
         EarClippingTriangulator triangulator = new EarClippingTriangulator();
         TextureRegion fillRegion = Drawing.getTextureProvider().getSinglePixelSquare();
-        GalFX.a(Drawing.getBoardCamera()); // TODO Implement this method in SLAPI
+        batch.setProjectionMatrix(Drawing.getBoardCamera().combined);
 
         int noOverlapCount = 0;
 

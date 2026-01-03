@@ -88,17 +88,6 @@ public class SCSExtension extends Extension {
     }
 
     static {
-        MinestomRootClassLoader.getInstance().addASMTransformer(new ASMTransformer() {
-            @Override
-            public boolean isValidTarget(@NotNull String internalName) {
-                return false;
-            }
-
-            @Override
-            public boolean accept(@NotNull ClassNode node) {
-                return false;
-            }
-        });
         SpaceASMTransformer.assumeVanillaRegionRenderingLogic(false);
     }
 }
