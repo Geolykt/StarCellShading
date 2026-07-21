@@ -169,6 +169,32 @@ public class SCSCoreLogic {
         }, new Rectangle(w / -2, h / -2, w, h), Drawing.getBoardCamera());
     }
 
+    /**
+     * Obtains an Aligned-Axis Bounding Box {@link Rectangle} which describes the smallest
+     * {@link Rectangle} that can fit in the camera's viewport.
+     *
+     * <p>The returned {@link Rectangle} is in {@link CoordinateGrid#BOARD} coordinates.
+     *
+     * @return The board AABB.
+     */
+    @NotNull
+    private static Rectangle getCameraBoardAABB() {
+        float screenW = Gdx.graphics.getWidth();
+        float screenH = Gdx.graphics.getHeight();
+
+        Vector3 coordsA = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, 0);
+        Vector3 coordsB = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
+        Vector3 coordsC = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
+        Vector3 coordsD = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, screenH);
+
+        float minX = Math.min(coordsA.x, Math.min(coordsB.x, Math.min(coordsC.x, coordsD.x)));
+        float maxX = Math.max(coordsA.x, Math.max(coordsB.x, Math.max(coordsC.x, coordsD.x)));
+        float minY = Math.min(coordsA.y, Math.min(coordsB.y, Math.min(coordsC.y, coordsD.y)));
+        float maxY = Math.max(coordsA.y, Math.max(coordsB.y, Math.max(coordsC.y, coordsD.y)));
+
+        return new Rectangle(minX, minY, maxX - minX, maxY - minY);
+    }
+
     public static void drawRegionsDirectBloom(@NotNull FlexibleQuadTree<Star> quadTree) {
         SpriteBatch batch = Drawing.getDrawingBatch();
 
@@ -184,15 +210,13 @@ public class SCSCoreLogic {
             blitShader = SCSCoreLogic.initializeBlitShader("bloom");
         }
 
-        float screenW = Gdx.graphics.getWidth();
-        float screenH = Gdx.graphics.getHeight();
-        Vector3 minCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
-        Vector3 maxCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
+        Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
+        viewAABB.x -= SCSCoreLogic.REGION_SIZE * 2;
+        viewAABB.y -= SCSCoreLogic.REGION_SIZE * 2;
+        viewAABB.width += SCSCoreLogic.REGION_SIZE * 4;
+        viewAABB.height += SCSCoreLogic.REGION_SIZE * 4;
 
-        minCoords.sub(SCSCoreLogic.REGION_SIZE * 2);
-        maxCoords.add(SCSCoreLogic.REGION_SIZE * 2);
-
-        List<Star> stars = quadTree.query(minCoords.x, minCoords.y, maxCoords.x, maxCoords.y);
+        List<Star> stars = quadTree.query(viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
 
         boolean drawing;
         if (drawing = batch.isDrawing()) {
@@ -394,15 +418,13 @@ public class SCSCoreLogic {
             edgeShader = SCSCoreLogic.initializeBlitShader("flat");
         }
 
-        float screenW = Gdx.graphics.getWidth();
-        float screenH = Gdx.graphics.getHeight();
-        Vector3 minCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
-        Vector3 maxCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
+        Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
+        viewAABB.x -= SCSCoreLogic.REGION_SIZE * 2;
+        viewAABB.y -= SCSCoreLogic.REGION_SIZE * 2;
+        viewAABB.width += SCSCoreLogic.REGION_SIZE * 4;
+        viewAABB.height += SCSCoreLogic.REGION_SIZE * 4;
 
-        minCoords.sub(SCSCoreLogic.REGION_SIZE * 2);
-        maxCoords.add(SCSCoreLogic.REGION_SIZE * 2);
-
-        List<Star> stars = quadTree.query(minCoords.x, minCoords.y, maxCoords.x, maxCoords.y);
+        List<Star> stars = quadTree.query(viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
 
         boolean drawing;
         if (drawing = batch.isDrawing()) {
@@ -606,15 +628,13 @@ public class SCSCoreLogic {
         SpriteBatch batch = Drawing.getDrawingBatch();
         batch.getShader().bind(); // Not sure why it wasn't bound before but not is certainly is.
 
-        float screenW = Gdx.graphics.getWidth();
-        float screenH = Gdx.graphics.getHeight();
-        Vector3 minCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
-        Vector3 maxCoords = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
+        Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
+        viewAABB.x -= SCSCoreLogic.REGION_SIZE * 2;
+        viewAABB.y -= SCSCoreLogic.REGION_SIZE * 2;
+        viewAABB.width += SCSCoreLogic.REGION_SIZE * 4;
+        viewAABB.height += SCSCoreLogic.REGION_SIZE * 4;
 
-        minCoords.sub(SCSCoreLogic.REGION_SIZE * 2);
-        maxCoords.add(SCSCoreLogic.REGION_SIZE * 2);
-
-        List<@NotNull Star> stars = quadTree.query(minCoords.x, minCoords.y, maxCoords.x, maxCoords.y);
+        List<@NotNull Star> stars = quadTree.query(viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
 
         if (stars.size() == 0) {
             return; // Nothing to do
@@ -644,9 +664,8 @@ public class SCSCoreLogic {
         }
 
         Voronoi voronoiGen = new Voronoi(1e-7);
-        List<GraphEdge> edges = voronoiGen.generateVoronoi(starPositionsX, starPositionsY, minCoords.x, maxCoords.x, minCoords.y, maxCoords.y);
-//        List<GraphEdge> edges = new ArrayList<>();
-        
+        List<GraphEdge> edges = voronoiGen.generateVoronoi(starPositionsX, starPositionsY, viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
+
         int[] edgeCount = new int[stars.size()];
         boolean[] frontierStar = new boolean[stars.size()];
         Set<Long> frontierVertices = new HashSet<>();

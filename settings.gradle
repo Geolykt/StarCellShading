@@ -7,10 +7,7 @@ pluginManagement {
             name = 'stianloader-maven'
             url = 'https://stianloader.org/maven/'
         }
-        maven {
-            name = "wagyourtail"
-            url = "https://maven.wagyourtail.xyz/releases"
-        }
+
         mavenLocal()
     }
 }
