@@ -47,15 +47,14 @@ import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Matrix4;
 import com.badlogic.gdx.math.Polygon;
 import com.badlogic.gdx.math.Rectangle;
-import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.utils.FloatArray;
 import com.badlogic.gdx.utils.IntMap;
 import com.badlogic.gdx.utils.NumberUtils;
 import com.badlogic.gdx.utils.ShortArray;
 
 import de.geolykt.scs.SCSConfig.CellStyle;
-import de.geolykt.starloader.api.CoordinateGrid;
 import de.geolykt.starloader.api.Galimulator;
+import de.geolykt.starloader.api.dimension.Dimension;
 import de.geolykt.starloader.api.empire.Alliance;
 import de.geolykt.starloader.api.empire.Star;
 import de.geolykt.starloader.api.gui.AsyncRenderer;
@@ -135,16 +134,17 @@ public class SCSCoreLogic {
 
     public static void drawRegionsAsync() {
         FlexibleQuadTree<@NotNull Star> quadTree = new FlexibleQuadTree<>(64);
+        Dimension universe = Galimulator.getUniverse();
 
-        for (Star s : Galimulator.getUniverse().getStarsView()) {
+        for (Star s : universe.getStarsView()) {
             quadTree.insert(s, s.getX(), s.getY());
         }
 
-        float w = Galimulator.getMap().getWidth();
-        float h = Galimulator.getMap().getWidth();
+        float w = (float) universe.getBoardWidth();
+        float h = (float) universe.getBoardHeight();
 
         AsyncRenderer.postRunnableRenderObject(() -> {
-            Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
+            Rectangle viewAABB = Drawing.getBoardCameraAABB();
             viewAABB.x -= SCSCoreLogic.REGION_SIZE * 2;
             viewAABB.y -= SCSCoreLogic.REGION_SIZE * 2;
             viewAABB.width += SCSCoreLogic.REGION_SIZE * 4;
@@ -625,6 +625,9 @@ public class SCSCoreLogic {
      * this algorithm does not create and maintain {@link FrameBuffer} objects (FBO), meaning that the resolution
      * of the buffer behind the rendering surface should be irrelevant - in theory at least.
      *
+     * <p>The viewAABB should correspond to the culling rectangle, obtained by {@link Drawing#getBoardCameraAABB()}
+     * and exploded by a bit (StarCellShading uses 32 granularity factors on each side)
+     *
      * @param stars The stars whose regions are to be rendered.
      * @param batch The surface to render the regions to.
      * @param viewAABB The minimum bounding rectangle of the view, in board coordinates. Used for the {@link Voronoi} generator.
@@ -942,6 +945,9 @@ public class SCSCoreLogic {
      *
      * <p>StarCellShading uses {@link Drawing#getBoardCamera()} for projection within this method.
      *
+     * <p>The viewAABB should correspond to the culling rectangle, obtained by {@link Drawing#getBoardCameraAABB()}
+     * and exploded by a bit (StarCellShading uses 32 granularity factors on each side)
+     *
      * @param stars The stars whose regions are to be rendered.
      * @param batch The surface to render the regions to.
      * @param viewAABB The minimum bounding rectangle of the view, in board coordinates. Used for the {@link Voronoi} generator in the {@link CellStyle#VORONOI_FISHBONE} algorithm. May be used for other algorithms in the future, too.
@@ -959,6 +965,7 @@ public class SCSCoreLogic {
             if (currentStyle.hasShaders()) {
                 SCSCoreLogic.initializeBlitShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
                 SCSCoreLogic.initializeExplodeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+
                 if (currentStyle == CellStyle.FLAT) {
                     SCSCoreLogic.initializeEdgeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
                 }
@@ -967,7 +974,9 @@ public class SCSCoreLogic {
             SCSCoreLogic.lastStyle = currentStyle;
         }
 
-        if (currentStyle == CellStyle.BLOOM) {
+        if (currentStyle == CellStyle.VANILLA) {
+            return; // Don't draw star regions for now. Wait until the simulation thread has caught up with the rendering thread for further instructions.
+        } else if (currentStyle == CellStyle.BLOOM) {
             SCSCoreLogic.drawRegionsDirectBloom(stars, surface);
         } else if (currentStyle == CellStyle.FLAT) {
             SCSCoreLogic.drawRegionsDirectFlat(stars, surface);
@@ -976,32 +985,6 @@ public class SCSCoreLogic {
         } else {
             Galimulator.panic("Unimplemented cell shading style: " + currentStyle + "\n[RED]This is a bug in star-cell-shading. Consider reporting it.[]", true);
         }
-    }
-
-    /**
-     * Obtains an Aligned-Axis Bounding Box {@link Rectangle} which describes the smallest
-     * {@link Rectangle} that can fit in the camera's viewport.
-     *
-     * <p>The returned {@link Rectangle} is in {@link CoordinateGrid#BOARD} coordinates.
-     *
-     * @return The board AABB.
-     */
-    @NotNull
-    private static Rectangle getCameraBoardAABB() {
-        float screenW = Gdx.graphics.getWidth();
-        float screenH = Gdx.graphics.getHeight();
-
-        Vector3 coordsA = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, 0);
-        Vector3 coordsB = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
-        Vector3 coordsC = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
-        Vector3 coordsD = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, screenH);
-
-        float minX = Math.min(coordsA.x, Math.min(coordsB.x, Math.min(coordsC.x, coordsD.x)));
-        float maxX = Math.max(coordsA.x, Math.max(coordsB.x, Math.max(coordsC.x, coordsD.x)));
-        float minY = Math.min(coordsA.y, Math.min(coordsB.y, Math.min(coordsC.y, coordsD.y)));
-        float maxY = Math.max(coordsA.y, Math.max(coordsB.y, Math.max(coordsC.y, coordsD.y)));
-
-        return new Rectangle(minX, minY, maxX - minX, maxY - minY);
     }
 
     @SuppressWarnings("null")

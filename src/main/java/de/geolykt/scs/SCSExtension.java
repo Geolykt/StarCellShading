@@ -8,31 +8,20 @@ import java.nio.file.Path;
 import org.jetbrains.annotations.NotNull;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.objectweb.asm.tree.ClassNode;
-
-import net.minestom.server.extras.selfmodification.MinestomRootClassLoader;
 
 import de.geolykt.starloader.api.event.EventHandler;
 import de.geolykt.starloader.api.event.EventManager;
 import de.geolykt.starloader.api.event.Listener;
-import de.geolykt.starloader.api.event.lifecycle.ApplicationStartedEvent;
 import de.geolykt.starloader.api.event.lifecycle.ApplicationStopEvent;
 import de.geolykt.starloader.api.resource.DataFolderProvider;
 import de.geolykt.starloader.impl.asm.SpaceASMTransformer;
 import de.geolykt.starloader.mod.Extension;
-import de.geolykt.starloader.transformers.ASMTransformer;
 
 public class SCSExtension extends Extension {
 
     @Override
     public void initialize() {
         EventManager.registerListener(new Listener() {
-            @EventHandler
-            public void afterStart(ApplicationStartedEvent e) {
-//                SCSCoreLogic.initializeExplodeShader();
-//                SCSCoreLogic.initializeBlitShader();
-            }
-
             @EventHandler
             public void onStop(ApplicationStopEvent e) {
                 SCSExtension.this.saveConfig();
@@ -44,6 +33,7 @@ public class SCSExtension extends Extension {
         });
 
         Path config = this.getConfigFile();
+
         if (Files.exists(config)) {
             try {
                 JSONObject json = new JSONObject(new String(Files.readAllBytes(config), StandardCharsets.UTF_8));
@@ -65,6 +55,7 @@ public class SCSExtension extends Extension {
     public void saveConfig() {
         Path file = this.getConfigFile();
         Path parent = file.getParent();
+
         try {
             if (parent != null) {
                 Files.createDirectories(parent);

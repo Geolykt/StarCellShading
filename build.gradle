@@ -41,7 +41,7 @@ deployMods {
 
 dependencies {
     // The versions of SLAPI are listed here: https://stianloader.org/maven/de/geolykt/starloader-api/
-    dependencyMods("de.geolykt:starloader-api:2.0.0-a20251226:remapped")
+    dependencyMods("de.geolykt:starloader-api:2.0.0-a20260823:remapped")
     // The versions of launcher-micromixin are listed here: https://stianloader.org/maven/org/stianloader/launcher-micromixin/
     devRuntime "org.stianloader:launcher-micromixin:4.0.0-a20251115"
     compileOnly "org.stianloader:micromixin-annotations:0.7.1-a20241021"
@@ -50,7 +50,7 @@ dependencies {
 
     // https://mvnrepository.com/artifact/org.danilopianini/java-quadtree
     // Remember to adjust the version here to the version used in the extension.json, too!
-    implementation ("org.danilopianini:java-quadtree:0.2.0") {
+    compileOnly ("org.danilopianini:java-quadtree:0.2.0") {
         exclude group: 'com.google.guava', module: 'guava'
     }
 }
