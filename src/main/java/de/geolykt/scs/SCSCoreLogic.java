@@ -14,10 +14,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
 import org.danilopianini.util.FlexibleQuadTree;
+import org.jetbrains.annotations.ApiStatus.AvailableSince;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -25,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.badlogic.gdx.Gdx;
+import com.badlogic.gdx.graphics.Camera;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.GL30;
@@ -132,6 +135,7 @@ public class SCSCoreLogic {
 
     public static void drawRegionsAsync() {
         FlexibleQuadTree<@NotNull Star> quadTree = new FlexibleQuadTree<>(64);
+
         for (Star s : Galimulator.getUniverse().getStarsView()) {
             quadTree.insert(s, s.getX(), s.getY());
         }
@@ -140,11 +144,40 @@ public class SCSCoreLogic {
         float h = Galimulator.getMap().getWidth();
 
         AsyncRenderer.postRunnableRenderObject(() -> {
-            SCSCoreLogic.drawRegionsSync(quadTree, Drawing.getDrawingBatch());
+            Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
+            viewAABB.x -= SCSCoreLogic.REGION_SIZE * 2;
+            viewAABB.y -= SCSCoreLogic.REGION_SIZE * 2;
+            viewAABB.width += SCSCoreLogic.REGION_SIZE * 4;
+            viewAABB.height += SCSCoreLogic.REGION_SIZE * 4;
+
+            List<@NotNull Star> culledStars = quadTree.query(viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
+
+            SCSCoreLogic.drawRegionsSync(Objects.requireNonNull(culledStars), Drawing.getDrawingBatch(), viewAABB);
         }, new Rectangle(w / -2, h / -2, w, h), Drawing.getBoardCamera());
     }
 
-    public static void drawRegionsDirectBloom(@NotNull FlexibleQuadTree<@NotNull Star> quadTree, @NotNull Batch batch) {
+    /**
+     * Render the star regions using the {@link CellStyle#BLOOM} style algorithm.
+     *
+     * <p>Note that for performance reasons the provided list of rendered stars
+     * should be culled beforehand, e.g. using frustum culling. Also keep in mind
+     * that off-screen stars can still create regions that are visible on the edges
+     * of the screen. By default StarCellShading recommends expanding the {@link Camera#frustum frustum}
+     * by around 32 granularity factors (32 * ~0.035 = ~1.12) to all sides.
+     *
+     * <p>StarCellShading expects the target surface to have the same properties as
+     * the {@link Drawing#getDrawingBatch()}, or more formally, to have the same width as the libGDX backbuffer.
+     * This is a restriction that might get removed at a later point in time, but right now exists
+     * due to StarCellShading creating framebuffers that correspond to the size of the libGDX backbuffer.
+     *
+     * <p>StarCellShading uses {@link Drawing#getBoardCamera()} for projection within this method.
+     *
+     * @param stars The stars whose regions are to be rendered.
+     * @param batch The surface to render the regions to.
+     * @since 0.5.0-a20260824
+     */
+    @AvailableSince("0.5.0-a20260824")
+    public static void drawRegionsDirectBloom(@NotNull List<@NotNull Star> stars, @NotNull Batch batch) {
         ShaderProgram explodeShader = SCSCoreLogic.explodeShader;
         if (explodeShader == null) {
             SCSCoreLogic.LOGGER.warn("Explode shader program wasn't yet initialized. Doing it now");
@@ -156,14 +189,6 @@ public class SCSCoreLogic {
             SCSCoreLogic.LOGGER.warn("Blit shader program wasn't yet initialized. Doing it now");
             blitShader = SCSCoreLogic.initializeBlitShader("bloom");
         }
-
-        Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
-        viewAABB.x -= SCSCoreLogic.REGION_SIZE * 2;
-        viewAABB.y -= SCSCoreLogic.REGION_SIZE * 2;
-        viewAABB.width += SCSCoreLogic.REGION_SIZE * 4;
-        viewAABB.height += SCSCoreLogic.REGION_SIZE * 4;
-
-        List<Star> stars = quadTree.query(viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
 
         boolean drawing;
         if (drawing = batch.isDrawing()) {
@@ -344,32 +369,48 @@ public class SCSCoreLogic {
         }
     }
 
-    public static void drawRegionsDirectFlat(@NotNull FlexibleQuadTree<@NotNull Star> quadTree, @NotNull Batch batch) {
+    /**
+     * Render the star regions using the {@link CellStyle#FLAT} style algorithm.
+     *
+     * <p>Note that for performance reasons the provided list of rendered stars
+     * should be culled beforehand, e.g. using frustum culling. Also keep in mind
+     * that off-screen stars can still create regions that are visible on the edges
+     * of the screen. By default StarCellShading recommends expanding the {@link Camera#frustum frustum}
+     * by around 32 granularity factors (32 * ~0.035 = ~1.12) to all sides.
+     *
+     * <p>StarCellShading expects the target surface to have the same properties as
+     * the {@link Drawing#getDrawingBatch()}, or more formally, to have the same width as the libGDX backbuffer.
+     * This is a restriction that might get removed at a later point in time, but right now exists
+     * due to StarCellShading creating framebuffers that correspond to the size of the libGDX backbuffer.
+     *
+     * <p>StarCellShading uses {@link Drawing#getBoardCamera()} for projection within this method.
+     *
+     * @param stars The stars whose regions are to be rendered.
+     * @param batch The surface to render the regions to.
+     * @since 0.5.0-a20260824
+     */
+    @AvailableSince("0.5.0-a20260824")
+    public static void drawRegionsDirectFlat(@NotNull List<@NotNull Star> stars, @NotNull Batch batch) {
         ShaderProgram explodeShader = SCSCoreLogic.explodeShader;
+
         if (explodeShader == null) {
             SCSCoreLogic.LOGGER.warn("Explode shader program wasn't yet initialized. Doing it now");
             explodeShader = SCSCoreLogic.initializeExplodeShader("flat");
         }
 
         ShaderProgram blitShader = SCSCoreLogic.blitShader;
+
         if (blitShader == null) {
             SCSCoreLogic.LOGGER.warn("Blit shader program wasn't yet initialized. Doing it now");
             blitShader = SCSCoreLogic.initializeBlitShader("flat");
         }
 
         ShaderProgram edgeShader = SCSCoreLogic.edgeShader;
+
         if (edgeShader == null) {
             SCSCoreLogic.LOGGER.warn("Edge shader program wasn't yet initialized. Doing it now");
             edgeShader = SCSCoreLogic.initializeBlitShader("flat");
         }
-
-        Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
-        viewAABB.x -= SCSCoreLogic.REGION_SIZE * 2;
-        viewAABB.y -= SCSCoreLogic.REGION_SIZE * 2;
-        viewAABB.width += SCSCoreLogic.REGION_SIZE * 4;
-        viewAABB.height += SCSCoreLogic.REGION_SIZE * 4;
-
-        List<Star> stars = quadTree.query(viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
 
         boolean drawing;
         if (drawing = batch.isDrawing()) {
@@ -569,16 +610,29 @@ public class SCSCoreLogic {
         }
     }
 
-    public static void drawRegionsFishbone(@NotNull FlexibleQuadTree<@NotNull Star> quadTree, @NotNull Batch batch) {
+    /**
+     * Render the star regions using the {@link CellStyle#VORONOI_FISHBONE} style algorithm.
+     *
+     * <p>Note that for performance reasons the provided list of rendered stars
+     * should be culled beforehand, e.g. using frustum culling. Also keep in mind
+     * that off-screen stars can still create regions that are visible on the edges
+     * of the screen. By default StarCellShading recommends expanding the {@link Camera#frustum frustum}
+     * by around 32 granularity factors (32 * ~0.035 = ~1.12) to all sides.
+     *
+     * <p>StarCellShading uses {@link Drawing#getBoardCamera()} for projection within this method.
+     *
+     * <p>Unlike other algorithms employed by StarCellShading (like {@link #drawRegionsDirectFlat(List, Batch)}),
+     * this algorithm does not create and maintain {@link FrameBuffer} objects (FBO), meaning that the resolution
+     * of the buffer behind the rendering surface should be irrelevant - in theory at least.
+     *
+     * @param stars The stars whose regions are to be rendered.
+     * @param batch The surface to render the regions to.
+     * @param viewAABB The minimum bounding rectangle of the view, in board coordinates. Used for the {@link Voronoi} generator.
+     * @since 0.5.0-a20260824
+     */
+    @AvailableSince("0.5.0-a20260824")
+    public static void drawRegionsFishbone(@NotNull List<@NotNull Star> stars, @NotNull Batch batch, @NotNull Rectangle viewAABB) {
         batch.getShader().bind(); // Not sure why it wasn't bound before but not is certainly is.
-
-        Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
-        viewAABB.x -= SCSCoreLogic.REGION_SIZE * 2;
-        viewAABB.y -= SCSCoreLogic.REGION_SIZE * 2;
-        viewAABB.width += SCSCoreLogic.REGION_SIZE * 4;
-        viewAABB.height += SCSCoreLogic.REGION_SIZE * 4;
-
-        List<@NotNull Star> stars = quadTree.query(viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
 
         if (stars.size() == 0) {
             return; // Nothing to do
@@ -818,12 +872,14 @@ public class SCSCoreLogic {
                         fillRegion.getU2(),
                         fillRegion.getV2()
                     }, 0, 20);
+
                     if (stars.get(i).getAssignedEmpireUID() != Galimulator.getUniverse().getNeutralEmpire().getUID()) {
                         Drawing.drawLine(vertexAx, vertexAy, vertexBx, vertexBy, SCSCoreLogic.GRANULARITY_FACTOR * 0.5F, edgeColor, Drawing.getBoardCamera());
                     }
                 }
             } else {
                 ShortArray indices = triangulator.computeTriangles(poly, 0, poly.length);
+
                 for (int j = indices.size - 3; j >= 0; j -= 3) {
                     float vertexAx = poly[indices.items[j] * 2];
                     float vertexAy = poly[indices.items[j] * 2 + 1];
@@ -850,6 +906,7 @@ public class SCSCoreLogic {
                             fillRegion.getV2()
                     }, 0, 20);
                 }
+
                 if (stars.get(i).getAssignedEmpireUID() != Galimulator.getUniverse().getNeutralEmpire().getUID()) {
                     for (int j = poly.length; j > 0; j -= 2) {
                         float vertexAx = poly[(poly.length - j + 0) % poly.length];
@@ -867,7 +924,30 @@ public class SCSCoreLogic {
         }
     }
 
-    public static void drawRegionsSync(@NotNull FlexibleQuadTree<@NotNull Star> stars, @NotNull Batch surface) {
+    /**
+     * Render the star regions using the currently selected {@link CellStyle} algorithm.
+     *
+     * <p>Note that for performance reasons the provided list of rendered stars
+     * should be culled beforehand, e.g. using frustum culling. Also keep in mind
+     * that off-screen stars can still create regions that are visible on the edges
+     * of the screen. By default StarCellShading recommends expanding the {@link Camera#frustum frustum}
+     * by around 32 granularity factors (32 * ~0.035 = ~1.12) to all sides.
+     *
+     * <p>StarCellShading expects the target surface to have the same properties as
+     * the {@link Drawing#getDrawingBatch()}, or more formally, to have the same width as the libGDX backbuffer.
+     * This is a restriction that might get removed at a later point in time, but right now exists
+     * due to StarCellShading creating framebuffers that correspond to the size of the libGDX backbuffer.
+     * For some styles, such as {@link CellStyle#VORONOI_FISHBONE} this does not apply as they do not
+     * create any {@link FrameBuffer} objects, however these styles are in the minority.
+     *
+     * <p>StarCellShading uses {@link Drawing#getBoardCamera()} for projection within this method.
+     *
+     * @param stars The stars whose regions are to be rendered.
+     * @param batch The surface to render the regions to.
+     * @param viewAABB The minimum bounding rectangle of the view, in board coordinates. Used for the {@link Voronoi} generator in the {@link CellStyle#VORONOI_FISHBONE} algorithm. May be used for other algorithms in the future, too.
+     * @since 0.5.0-a20260824
+     */
+    public static void drawRegionsSync(@NotNull List<@NotNull Star> stars, @NotNull Batch surface, @NotNull Rectangle viewAABB) {
         CellStyle currentStyle = CellStyle.getCurrentStyle();
 
         if (currentStyle != SCSCoreLogic.lastStyle) {
@@ -892,7 +972,7 @@ public class SCSCoreLogic {
         } else if (currentStyle == CellStyle.FLAT) {
             SCSCoreLogic.drawRegionsDirectFlat(stars, surface);
         } else if (currentStyle == CellStyle.VORONOI_FISHBONE) {
-            SCSCoreLogic.drawRegionsFishbone(stars, surface);
+            SCSCoreLogic.drawRegionsFishbone(stars, surface, viewAABB);
         } else {
             Galimulator.panic("Unimplemented cell shading style: " + currentStyle + "\n[RED]This is a bug in star-cell-shading. Consider reporting it.[]", true);
         }
