@@ -665,7 +665,7 @@ public class SCSCoreLogic {
         }
 
         Voronoi voronoiGen = new Voronoi(1e-7);
-        List<GraphEdge> edges = voronoiGen.generateVoronoi(starPositionsX, starPositionsY, viewAABB.x, viewAABB.y, viewAABB.x + viewAABB.width, viewAABB.y + viewAABB.height);
+        List<GraphEdge> edges = voronoiGen.generateVoronoi(starPositionsX, starPositionsY, viewAABB.x, viewAABB.x + viewAABB.width, viewAABB.y, viewAABB.y + viewAABB.height);
 
         int[] edgeCount = new int[stars.size()];
         boolean[] frontierStar = new boolean[stars.size()];
