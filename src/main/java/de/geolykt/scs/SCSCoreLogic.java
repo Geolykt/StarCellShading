@@ -32,6 +32,7 @@ import com.badlogic.gdx.graphics.Mesh;
 import com.badlogic.gdx.graphics.Pixmap;
 import com.badlogic.gdx.graphics.VertexAttribute;
 import com.badlogic.gdx.graphics.VertexAttributes.Usage;
+import com.badlogic.gdx.graphics.g2d.Batch;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 import com.badlogic.gdx.graphics.glutils.FrameBuffer;
@@ -72,20 +73,20 @@ public class SCSCoreLogic {
     private static ShaderProgram blitShader;
     private static ShaderProgram edgeShader;
     private static ShaderProgram explodeShader;
-    private static final float GRANULARITY_FACTOR = 0.035F;
-    @Nullable
-    private static CellStyle lastStyle = null;
-
-    private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
-    private static final int MAX_INDICES = 0x1000;
-    private static final int MAX_INDICES_MASK = 0x0FFF;
-    private static final boolean PRINT_SHADER_LOGS = Boolean.getBoolean("de.geolykt.scs.PRINT_SHADER_LOGS");
-    private static final float REGION_SIZE = SCSCoreLogic.GRANULARITY_FACTOR * 16;
-
     @Nullable
     private static FrameBuffer fboAux0;
     @Nullable
     private static FrameBuffer fboAux1;
+
+    private static final float GRANULARITY_FACTOR = 0.035F;
+    @Nullable
+    private static CellStyle lastStyle = null;
+    private static final Logger LOGGER = LoggerFactory.getLogger(SCSCoreLogic.class);
+    private static final int MAX_INDICES = 0x1000;
+    private static final int MAX_INDICES_MASK = 0x0FFF;
+
+    private static final boolean PRINT_SHADER_LOGS = Boolean.getBoolean("de.geolykt.scs.PRINT_SHADER_LOGS");
+    private static final float REGION_SIZE = SCSCoreLogic.GRANULARITY_FACTOR * 16;
 
     public static void discardFBOs() {
         FrameBuffer fbo = SCSCoreLogic.fboAux0;
@@ -128,76 +129,22 @@ public class SCSCoreLogic {
         shader.dispose();
     }
 
+
     public static void drawRegionsAsync() {
         FlexibleQuadTree<@NotNull Star> quadTree = new FlexibleQuadTree<>(64);
         for (Star s : Galimulator.getUniverse().getStarsView()) {
             quadTree.insert(s, s.getX(), s.getY());
         }
 
-        CellStyle currentStyle = CellStyle.getCurrentStyle();
-
         float w = Galimulator.getMap().getWidth();
         float h = Galimulator.getMap().getWidth();
 
         AsyncRenderer.postRunnableRenderObject(() -> {
-            if (currentStyle != SCSCoreLogic.lastStyle) {
-                SCSCoreLogic.discardFBOs();
-                SCSCoreLogic.disposeBlitShader();
-                SCSCoreLogic.disposeExplodeShader();
-                SCSCoreLogic.disposeEdgeShader();
-
-                if (currentStyle.hasShaders()) {
-                    SCSCoreLogic.initializeBlitShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
-                    SCSCoreLogic.initializeExplodeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
-                    if (currentStyle == CellStyle.FLAT) {
-                        SCSCoreLogic.initializeEdgeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
-                    }
-                }
-
-                SCSCoreLogic.lastStyle = currentStyle;
-            }
-
-            if (currentStyle == CellStyle.BLOOM) {
-                SCSCoreLogic.drawRegionsDirectBloom(quadTree);
-            } else if (currentStyle == CellStyle.FLAT) {
-                SCSCoreLogic.drawRegionsDirectFlat(quadTree);
-            } else if (currentStyle == CellStyle.VORONOI_FISHBONE) {
-                SCSCoreLogic.drawRegionsFishbone(quadTree);
-            } else {
-                Galimulator.panic("Unimplemented cell shading style: " + currentStyle + "\n[RED]This is a bug in star-cell-shading. Consider reporting it.[]", true);
-            }
+            SCSCoreLogic.drawRegionsSync(quadTree, Drawing.getDrawingBatch());
         }, new Rectangle(w / -2, h / -2, w, h), Drawing.getBoardCamera());
     }
 
-    /**
-     * Obtains an Aligned-Axis Bounding Box {@link Rectangle} which describes the smallest
-     * {@link Rectangle} that can fit in the camera's viewport.
-     *
-     * <p>The returned {@link Rectangle} is in {@link CoordinateGrid#BOARD} coordinates.
-     *
-     * @return The board AABB.
-     */
-    @NotNull
-    private static Rectangle getCameraBoardAABB() {
-        float screenW = Gdx.graphics.getWidth();
-        float screenH = Gdx.graphics.getHeight();
-
-        Vector3 coordsA = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, 0);
-        Vector3 coordsB = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
-        Vector3 coordsC = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
-        Vector3 coordsD = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, screenH);
-
-        float minX = Math.min(coordsA.x, Math.min(coordsB.x, Math.min(coordsC.x, coordsD.x)));
-        float maxX = Math.max(coordsA.x, Math.max(coordsB.x, Math.max(coordsC.x, coordsD.x)));
-        float minY = Math.min(coordsA.y, Math.min(coordsB.y, Math.min(coordsC.y, coordsD.y)));
-        float maxY = Math.max(coordsA.y, Math.max(coordsB.y, Math.max(coordsC.y, coordsD.y)));
-
-        return new Rectangle(minX, minY, maxX - minX, maxY - minY);
-    }
-
-    public static void drawRegionsDirectBloom(@NotNull FlexibleQuadTree<Star> quadTree) {
-        SpriteBatch batch = Drawing.getDrawingBatch();
-
+    public static void drawRegionsDirectBloom(@NotNull FlexibleQuadTree<@NotNull Star> quadTree, @NotNull Batch batch) {
         ShaderProgram explodeShader = SCSCoreLogic.explodeShader;
         if (explodeShader == null) {
             SCSCoreLogic.LOGGER.warn("Explode shader program wasn't yet initialized. Doing it now");
@@ -397,9 +344,7 @@ public class SCSCoreLogic {
         }
     }
 
-    public static void drawRegionsDirectFlat(@NotNull FlexibleQuadTree<Star> quadTree) {
-        SpriteBatch batch = Drawing.getDrawingBatch();
-
+    public static void drawRegionsDirectFlat(@NotNull FlexibleQuadTree<@NotNull Star> quadTree, @NotNull Batch batch) {
         ShaderProgram explodeShader = SCSCoreLogic.explodeShader;
         if (explodeShader == null) {
             SCSCoreLogic.LOGGER.warn("Explode shader program wasn't yet initialized. Doing it now");
@@ -624,8 +569,7 @@ public class SCSCoreLogic {
         }
     }
 
-    public static void drawRegionsFishbone(@NotNull FlexibleQuadTree<@NotNull Star> quadTree) {
-        SpriteBatch batch = Drawing.getDrawingBatch();
+    public static void drawRegionsFishbone(@NotNull FlexibleQuadTree<@NotNull Star> quadTree, @NotNull Batch batch) {
         batch.getShader().bind(); // Not sure why it wasn't bound before but not is certainly is.
 
         Rectangle viewAABB = SCSCoreLogic.getCameraBoardAABB();
@@ -921,6 +865,63 @@ public class SCSCoreLogic {
         if (noOverlapCount != 0) {
             LoggerFactory.getLogger(SCSCoreLogic.class).debug("Fishbone: {} regions do not have an overlap (incorrect voronoi regions?).", noOverlapCount);
         }
+    }
+
+    public static void drawRegionsSync(@NotNull FlexibleQuadTree<@NotNull Star> stars, @NotNull Batch surface) {
+        CellStyle currentStyle = CellStyle.getCurrentStyle();
+
+        if (currentStyle != SCSCoreLogic.lastStyle) {
+            SCSCoreLogic.discardFBOs();
+            SCSCoreLogic.disposeBlitShader();
+            SCSCoreLogic.disposeExplodeShader();
+            SCSCoreLogic.disposeEdgeShader();
+
+            if (currentStyle.hasShaders()) {
+                SCSCoreLogic.initializeBlitShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+                SCSCoreLogic.initializeExplodeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+                if (currentStyle == CellStyle.FLAT) {
+                    SCSCoreLogic.initializeEdgeShader(currentStyle.toString().toLowerCase(Locale.ROOT) + "");
+                }
+            }
+
+            SCSCoreLogic.lastStyle = currentStyle;
+        }
+
+        if (currentStyle == CellStyle.BLOOM) {
+            SCSCoreLogic.drawRegionsDirectBloom(stars, surface);
+        } else if (currentStyle == CellStyle.FLAT) {
+            SCSCoreLogic.drawRegionsDirectFlat(stars, surface);
+        } else if (currentStyle == CellStyle.VORONOI_FISHBONE) {
+            SCSCoreLogic.drawRegionsFishbone(stars, surface);
+        } else {
+            Galimulator.panic("Unimplemented cell shading style: " + currentStyle + "\n[RED]This is a bug in star-cell-shading. Consider reporting it.[]", true);
+        }
+    }
+
+    /**
+     * Obtains an Aligned-Axis Bounding Box {@link Rectangle} which describes the smallest
+     * {@link Rectangle} that can fit in the camera's viewport.
+     *
+     * <p>The returned {@link Rectangle} is in {@link CoordinateGrid#BOARD} coordinates.
+     *
+     * @return The board AABB.
+     */
+    @NotNull
+    private static Rectangle getCameraBoardAABB() {
+        float screenW = Gdx.graphics.getWidth();
+        float screenH = Gdx.graphics.getHeight();
+
+        Vector3 coordsA = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, 0);
+        Vector3 coordsB = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, 0, screenH);
+        Vector3 coordsC = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, 0);
+        Vector3 coordsD = Drawing.convertCoordinates(CoordinateGrid.SCREEN, CoordinateGrid.BOARD, screenW, screenH);
+
+        float minX = Math.min(coordsA.x, Math.min(coordsB.x, Math.min(coordsC.x, coordsD.x)));
+        float maxX = Math.max(coordsA.x, Math.max(coordsB.x, Math.max(coordsC.x, coordsD.x)));
+        float minY = Math.min(coordsA.y, Math.min(coordsB.y, Math.min(coordsC.y, coordsD.y)));
+        float maxY = Math.max(coordsA.y, Math.max(coordsB.y, Math.max(coordsC.y, coordsD.y)));
+
+        return new Rectangle(minX, minY, maxX - minX, maxY - minY);
     }
 
     @SuppressWarnings("null")
